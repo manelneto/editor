@@ -3,12 +3,12 @@
 
 ## Group info
 
-Group Number: ses2223gXX
+Group Number: ses2425gXX
 
 Group Members:
-* Number1 - Name1
-* Number2 - Name2
-* Number3 - Name3
+* 202108758 - Eduardo Roçadas
+* 202108744 - Manuel Neto
+* 201804979 - André Serra
 
 ## Whatever else
 
