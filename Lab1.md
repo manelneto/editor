@@ -1,5 +1,7 @@
 # Lab 1 - Low-Level Security
 
+Os programas escolhidos para investigar foram o `misused_string_fct_taint` (145/146) e o `os_cmd_scope` (155/156), disponibilizados na pasta `Lab1`.
+
 ## 145/146 - `misused_string_fct_taint`
 
 O ficheiro `misused_string_fct_taint-bad.c` contém o código abaixo.
@@ -47,6 +49,10 @@ No entanto, a CWE associada é erradamente identificada como sendo a **[CWE-122:
 Foi também testado o ***SemGrep***, mas este *scanner* não detetou qualquer vulnerabilidade no programa usando apenas as regras predefinidas.
 
 TODO: *From the error log (or lack thereof), what can you deduct about the scanner's analysis technique?*
+
+...
+
+TODO: The tools used to analyze misused_string_fct_taint-bad.c were Valgrind, due to it's usefulness in detecting stack smashing and stack overflow based vulnerabilities. When using Valgrind to analyze this program, intially we tried using an input bellow 10, the program didn't identify any issues. We then decided to use the same command but with an input of more than 10. Valgrind was able to identify that there was stack smashing happening.
 
 ## 155/156 - `os_cmd_scope`
 
