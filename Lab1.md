@@ -50,9 +50,67 @@ Foi também testado o ***SemGrep***, mas este *scanner* não detetou qualquer vu
 
 TODO: *From the error log (or lack thereof), what can you deduct about the scanner's analysis technique?*
 
-...
+Para analisar esta vulnerabilidade de *buffer overflow*, foram escolhidas diversas ferramentas dinâmicas e estáticas.
 
-TODO: The tools used to analyze misused_string_fct_taint-bad.c were Valgrind, due to it's usefulness in detecting stack smashing and stack overflow based vulnerabilities. When using Valgrind to analyze this program, intially we tried using an input bellow 10, the program didn't identify any issues. We then decided to use the same command but with an input of more than 10. Valgrind was able to identify that there was stack smashing happening.
+No que toca às ferramentas dinâmicas, escolheu-se utilizar o ***Valgrind*** devido à sua capacidade para detetar erros de memória, em particular vulnerabilidades baseadas em *stack smashing* e *stack overflow*.
+
+Assim, testaram-se alguns exemplos de execução do programa com o ***Valgrind***, quer com *inputs* de tamanho inferior ao do *array* (10), quer com *inputs* capazes de causar uma *segmentation fault*, tal como visto anteriormente.
+
+![Valgrind](/Lab1/images/145-valgrind.png)
+
+No caso de *inputs* com tamanho inferior a 10, o ***Valgrind*** não identificou qualquer problema.
+
+No entanto, ao correr o mesmo comando, mas com *input* de tamanho superior a 10, o ***Valgrind*** foi capaz de identificar a ocorrência de um *stack overflow*. Deste modo, obtêm-se erros indicativos de que ocorreu uma leitura inválida, ou seja, uma tentativa de leitura a partir de um endereço inválido de memória, causando o erro na execução do programa.
+
+De seguida, testou-se a utilização do ***Address Sanitizer***, enquanto detetor de erros de memória em tempo de execução, experimentando-se os vários valores possíveis para a *flag* `fsanitize`, começando pela mais apropriada para este caso, `fsanitize=address`.
+
+![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-1.png)
+![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-2.png)
+
+Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque TODO:
+
+Em segundo lugar, compilou-se o programa com a *flag* `fsanitize=leak`.
+
+![Address Sanitizer fsanitize=leak](/Lab1/images/145-addresssanitizer-leak.png)
+
+De forma contrária à anterior, esta compilação já não detetou qualquer erro. Este comportamento é esperado porque TODO:
+
+De seguida, utilizou-se a *flag* de compilação `fsanitize=memory`.
+
+![Address Sanitizer fsanitize=memory](/Lab1/images/145-addresssanitizer-memory.png)
+
+Tal como anteriormente, a *flag* `fsanitize=memory` também não acusou qualquer resultado. Isto acontece porque TODO:
+
+Por último, a compilação do programa foi feita com a *flag* `fsnatize=undefined`.
+
+![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-1.png)
+![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-2.png)
+
+Desta vez, o ***Address Sanitizer*** identificou adequadamente o comportamento indefinido do programa para *inputs* a partir de um certo tamanho. Isto deve-se a TODO:
+
+As ferramentas dinâmicas ***Taintgrind*** e ***Clang Data Flow Sanitizer*** não foram executadas por não serem adequadas à deteção da vulnerabilidade em questão, visto que o seu propósito consiste em identificar o fluxo de informação do programa, em particular o destino de *inputs* sensíveis, o que não era o pretendido neste caso. Além disso, a ferramenta ***TIMECOP*** também não foi utilizada, por não existir qualquer relação entre o programa vulnerável apresentado e *timing attacks*, pelo que não é pertinente efetuar *constant-time analysis*.
+
+Passando para a análise estática do programa, correram-se as ferramentas mais interessantes para o efeito.
+
+Inicialmente, a ferramenta ***Scan-build*** foi executada por se tratar de uma solução para detetar erros de programação em programas escritos em C/C++, como é o caso.
+
+![Scan-build](/Lab1/images/145-scanbuild.png)
+
+Efetivamente, o ***Scan-build*** alertou corretamente para o *bug* encontrado no código, em particular na chamada à função `strcpy()`. Esta deteção funcionou porque o ***Scan-build*** emite um aviso/alerta para qualquer utilização de `strcpy()`, mesmo que não constitua uma vulnerabilidade. Neste caso, é realmente uma chamada potencialmente insegura, por não se verificarem os limites do *input*.
+
+Posteriormente, foi executado a analisador estático ***IKOS*** contra o mesmo código C/C++ para investigar a segurança do programa.
+
+![IKOS](/Lab1/images/145-ikos.png)
+
+O ***IKOS*** identificou corretamente o programa como potencialmente inseguro por quatro razões. As duas primeiras razões referem-se à possível utilização do valor de `argv[1]` sem ter sido inicializado, podendo, por isso, ser nulo. No entanto, estes dois casos não se aplicam na prática, porque, ao verificar-se que `argc > 1`, garante-se que `argv[1]` contém algum valor, nomeadamente o *input* fornecido pelo utilizador ao programa. Após isso, surge mais um aviso relativamente ao conteúdo de `argv[1]` enquanto acesso a memória, mas também não é esse o objeto principal da análise de vulnerabilidades. Finalmente, o último aviso da ferramenta salienta a possibilidade da ocorrência de um *buffer overflow*, como é o caso. TODO:
+
+A ferramenta ***Frama-C*** não foi testada, por ser especialmente focada em programa de tamanho industrial escritos em ISO C99, o que não se aplica nesta situação em particular, dada a simplicidade do código. Por já terem sido experimentadas outras ferramentas estáticas, descartou-se a utilização de ***Smack***. Além disto, não sendo este um caso para o qual faz sentido realizar *constant-time analysis*, não se correu ***ctverif***.
+
+Por último, foi executada a ferramenta ***infer*** para experimentar mais uma análise estática para erros de memória, de forma semelhante a ***scan-build***.
+
+![infer](/Lab1/images/145-infer.png)
+
+TODO:
 
 ## 155/156 - `os_cmd_scope`
 
