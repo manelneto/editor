@@ -67,26 +67,26 @@ De seguida, testou-se a utilização do ***Address Sanitizer***, enquanto deteto
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-1.png)
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-2.png)
 
-Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque TODO:
+Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque _contém código que permite fazer essas verificações como redzones na pilha e interseção de acessos à memória_.
 
 Em segundo lugar, compilou-se o programa com a *flag* `fsanitize=leak`.
 
 ![Address Sanitizer fsanitize=leak](/Lab1/images/145-addresssanitizer-leak.png)
 
-De forma contrária à anterior, esta compilação já não detetou qualquer erro. Este comportamento é esperado porque TODO:
+De forma contrária à anterior, esta compilação já não detetou qualquer erro. Este comportamento é esperado porque _o leak está preparado para identificar acessos à memória indevidos, mas sim para testar se existiram alocações de memória que não foram libertadas_.
 
 De seguida, utilizou-se a *flag* de compilação `fsanitize=memory`.
 
 ![Address Sanitizer fsanitize=memory](/Lab1/images/145-addresssanitizer-memory.png)
 
-Tal como anteriormente, a *flag* `fsanitize=memory` também não acusou qualquer resultado. Isto acontece porque TODO:
+Tal como anteriormente, a *flag* `fsanitize=memory` também não acusou qualquer resultado. Isto acontece porque _a flag memory esta preparada para identidficar no programa analizado se são lidos endereços de memória não inicializados_.
 
 Por último, a compilação do programa foi feita com a *flag* `fsnatize=undefined`.
 
 ![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-1.png)
 ![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-2.png)
 
-Desta vez, o ***Address Sanitizer*** identificou adequadamente o comportamento indefinido do programa para *inputs* a partir de um certo tamanho. Isto deve-se a TODO:
+Desta vez, o ***Address Sanitizer*** identificou adequadamente o comportamento indefinido do programa para *inputs* a partir de um certo tamanho. Isto deve-se à _maneira como a flag undefined funciona, o analyzer usa várias ferramentas das flags anteriores, inclusive as que funcionaram._
 
 As ferramentas dinâmicas ***Taintgrind*** e ***Clang Data Flow Sanitizer*** não foram executadas por não serem adequadas à deteção da vulnerabilidade em questão, visto que o seu propósito consiste em identificar o fluxo de informação do programa, em particular o destino de *inputs* sensíveis, o que não era o pretendido neste caso. Além disso, a ferramenta ***TIMECOP*** também não foi utilizada, por não existir qualquer relação entre o programa vulnerável apresentado e *timing attacks*, pelo que não é pertinente efetuar *constant-time analysis*.
 
