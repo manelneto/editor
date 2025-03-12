@@ -67,26 +67,26 @@ De seguida, testou-se a utilização do ***Address Sanitizer***, enquanto deteto
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-1.png)
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-2.png)
 
-Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque TODO:
+Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque a *flag* utilizada ativa o *AddressSanitizer* (ASan) propriamente dito (visto que existem outras categorias de *sanitizers*, a explicar posteriormente) que é projetado para encontrar casos de: *use after free*, *heap buffer overflow*, *stack buffer overflow*, *global buffer overflow*, *use after return*, *use after scope*, *initialization order bugs* e *memory leaks*. Sendo esta vulnerabilidade um caso de *stack buffer overflow*, foi corretamente detetata pelo *Address Sanitizer*.
 
 Em segundo lugar, compilou-se o programa com a *flag* `fsanitize=leak`.
 
 ![Address Sanitizer fsanitize=leak](/Lab1/images/145-addresssanitizer-leak.png)
 
-De forma contrária à anterior, esta compilação já não detetou qualquer erro. Este comportamento é esperado porque TODO:
+De forma contrária à anterior, esta compilação já não detetou qualquer erro. Isto acontece porque a *flag* `fsanitize=leak` ativa o *LeakSanitizer*, que é um detetor de *memory leaks* integrado no ***Address Sanitizer***. Efetivamente, como o erro no código não causa um *memory leak*, mas sim um *buffer overflow*, não é esperado que este *sanitizer* acuse o problema, o que se confirmou.
 
 De seguida, utilizou-se a *flag* de compilação `fsanitize=memory`.
 
 ![Address Sanitizer fsanitize=memory](/Lab1/images/145-addresssanitizer-memory.png)
 
-Tal como anteriormente, a *flag* `fsanitize=memory` também não acusou qualquer resultado. Isto acontece porque TODO:
+Tal como anteriormente, a *flag* `fsanitize=memory` também não acusou qualquer resultado. Este comportamento é esperado porque o *sanitizer* ativo pela *flag* `fsanitize=memory` é o *MemorySanitizer*, cuja função é detetar leituras de memória não inicializada. Ora, como a vulnerabilidade presente no código consiste num erro de escrita em memória e não num erro de leitura, encontra-se fora do âmbito do *MemorySanitizer*.
 
 Por último, a compilação do programa foi feita com a *flag* `fsnatize=undefined`.
 
 ![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-1.png)
 ![Address Sanitizer fsanitize=undefined](/Lab1/images/145-addresssanitizer-undefined-2.png)
 
-Desta vez, o ***Address Sanitizer*** identificou adequadamente o comportamento indefinido do programa para *inputs* a partir de um certo tamanho. Isto deve-se a TODO:
+Desta vez, o ***Address Sanitizer*** identificou adequadamente o comportamento indefinido do programa para *inputs* a partir de um certo tamanho. Isto deve-se ao comportamento do *UndefinedBehaviorSanitizer* (UBSan), que modifica o programa em tempo de compilação para detetar diversos tipos de comportamento indefinido durante a execução do programa. Como um *buffer overflow* - escrita para um *array* num *offset* para além do tamanho do mesmo - é um exemplo de comportamento indefinido na especificação da linguagem C, foi corretamente assinalado pela ferramenta.
 
 As ferramentas dinâmicas ***Taintgrind*** e ***Clang Data Flow Sanitizer*** não foram executadas por não serem adequadas à deteção da vulnerabilidade em questão, visto que o seu propósito consiste em identificar o fluxo de informação do programa, em particular o destino de *inputs* sensíveis, o que não era o pretendido neste caso. Além disso, a ferramenta ***TIMECOP*** também não foi utilizada, por não existir qualquer relação entre o programa vulnerável apresentado e *timing attacks*, pelo que não é pertinente efetuar *constant-time analysis*.
 
