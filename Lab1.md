@@ -50,6 +50,9 @@ Foi também testado o ***SemGrep***, mas este *scanner* não detetou qualquer vu
 
 TODO: *From the error log (or lack thereof), what can you deduct about the scanner's analysis technique?*
 
+O ***Flawfinder*** e o ***Snyk Code Checker*** conseguiram identificar a vulnerabilidade presente. O que aparenta acontecer é que ambos contém uma lista de funções potencialmente inseguras e verificam se estas são utilizadas no programa. Seguidamente são listadas as CWEs associadas (com erro no caso do ***Snyk Code Checker***).
+O ***SemGrep*** aparenta no entanto fazer *taint analyses*, sendo essa a razão para não identificar o *strcpy()*.
+
 Para analisar esta vulnerabilidade de *buffer overflow*, foram escolhidas diversas ferramentas dinâmicas e estáticas.
 
 No que toca às ferramentas dinâmicas, escolheu-se utilizar o ***Valgrind*** devido à sua capacidade para detetar erros de memória, em particular vulnerabilidades baseadas em *stack smashing* e *stack overflow*.
@@ -102,7 +105,7 @@ Posteriormente, foi executado a analisador estático ***IKOS*** contra o mesmo c
 
 ![IKOS](/Lab1/images/145-ikos.png)
 
-O ***IKOS*** identificou corretamente o programa como potencialmente inseguro por quatro razões. As duas primeiras razões referem-se à possível utilização do valor de `argv[1]` sem ter sido inicializado, podendo, por isso, ser nulo. No entanto, estes dois casos não se aplicam na prática, porque, ao verificar-se que `argc > 1`, garante-se que `argv[1]` contém algum valor, nomeadamente o *input* fornecido pelo utilizador ao programa. Após isso, surge mais um aviso relativamente ao conteúdo de `argv[1]` enquanto acesso a memória, mas também não é esse o objeto principal da análise de vulnerabilidades. Finalmente, o último aviso da ferramenta salienta a possibilidade da ocorrência de um *buffer overflow*, como é o caso. TODO:
+O ***IKOS*** identificou corretamente o programa como potencialmente inseguro por quatro razões. As duas primeiras razões referem-se à possível utilização do valor de `argv[1]` sem ter sido inicializado, podendo, por isso, ser nulo. No entanto, estes dois casos não se aplicam na prática, porque, ao verificar-se que `argc > 1`, garante-se que `argv[1]` contém algum valor, nomeadamente o *input* fornecido pelo utilizador ao programa. Após isso, surge mais um aviso relativamente ao conteúdo de `argv[1]` enquanto acesso a memória, mas também não é esse o objeto principal da análise de vulnerabilidades. Finalmente, o último aviso da ferramenta salienta a possibilidade da ocorrência de um *buffer overflow*, como é o caso. O ***IKOS*** conseguiu identificar esta vulnerabilidade por causa da maneira como este funciona. O ***IKOS*** contém uma lista de funções potêncialmente inseguras e alerta se alguma dessas funções é utilizada, como é o caso de `strcpy()`, tal como os passos para evitar essa vulnerabilidade.
 
 A ferramenta ***Frama-C*** não foi testada, por ser especialmente focada em programas de tamanho industrial escritos em ISO C99, o que não se aplica nesta situação em particular, dada a simplicidade do código. Por já terem sido experimentadas outras ferramentas estáticas, descartou-se a utilização de ***Smack***. Além disto, não sendo este um caso para o qual faz sentido realizar *constant-time analysis*, não se correu ***ctverif***.
 
@@ -110,11 +113,8 @@ Por último, foi executada a ferramenta ***infer*** para experimentar mais uma a
 
 ![infer](/Lab1/images/145-infer.png)
 
-TODO:
-
-- Which tools have you found more suitable for analysing your vulnerabilities and why?
-- How have the chosen tools helped in finding those vulnerabilities?
-- Which tool limitations did you encounter and which adjustments to the program or tool parameters have you found necessary?
+Relativamente às ferramentas dinâmicas, tanto o ***Valgrind*** como o ***Address Sanitizer*** identificaram corretamente o problema. Damos primazia, no entanto, ao ***Address Sanitizer*** devido à informação extra que é providenciada como o endereço onde o *stack buffer overflow* ocorreu quando ultilizada a flag correta.
+Tanto o ***IKOS*** como o ***Scan-build*** identificaram o comando `strcpy()` como potencialmente perigoso, mas não oferece mais informação por não ter contexto extra. O ***infer*** não identificou nenhum problema. Podemos então chegar à conclusão que a análise estática deste tipo de problemas não é particularmente útil, não dizendo nada específico em relação ao programa.
 
 ## 155/156 - `os_cmd_scope`
 
