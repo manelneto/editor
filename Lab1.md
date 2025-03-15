@@ -34,6 +34,27 @@ Assim sendo, existem três CWEs associadas a esta vulnerabilidade:
 
 ![CWE 119](/Lab1/images/145-cwe.png)
 
+O programa `misused_string_fct_taint-good.c` apresenta o código abaixo, com a vulnerabilidade já corrigida.
+
+```c
+#define MAX_SIZE 10
+
+int main(int argc, char *argv[])
+{
+	char str[MAX_SIZE];
+	// Often Misused String Management:
+	// Buffer overflow with strcpy function
+	if (argc > 1)
+	{
+		strncpy(str, argv[1], MAX_SIZE - 1);					/* FIX */
+		str[MAX_SIZE - 1] = '\0';
+	}
+	return 0;
+}
+```
+
+Neste caso, a utilização de `strncpy()` - em vez de `strcpy()` - com o número de *bytes* a copiar limitado a `MAX_SIZE - 1` *bytes* garante não é possível explorar falha de *buffer overflow* anteriormente exposta.
+
 ### *Vulnerability Scanners*
 
 Tendo em conta que o código do programa está escrito em C/C++, é adequado correr-se o *scanner* de vulnerabilidades ***Flawfinder***.
@@ -118,13 +139,15 @@ Por último, foi executada a ferramenta ***infer*** para experimentar mais uma a
 
 ![infer](/Lab1/images/145-infer.png)
 
-TODO: INFER
+Esta análise - executada quer com as verificações predefinidas do ***infer***, quer com a *flag* `--bufferoverrun` - não detetou quaisquer erros, como é visível através do seu *output*.
 
 ### Conclusão
 
-Relativamente às ferramentas dinâmicas, tanto o ***Valgrind*** quanto o ***Address Sanitizer*** identificaram corretamente o problema. Privilegia-se, no entanto, o ***Address Sanitizer*** devido à informação extra que providencia, como o endereço de memória onde o *stack buffer overflow* ocorreu. Tanto o ***IKOS*** como o ***scan-build*** sinalizaram o comando `strcpy()` como potencialmente perigoso, mas não ofereceram mais informação por não terem contexto adicional. O ***infer*** não identificou nenhum problema. Conclui-se, então, que a análise estática deste tipo de vulnerabilidades não é particularmente útil, não dizendo nada específico em relação ao programa.
+Relativamente às ferramentas dinâmicas, tanto o ***Valgrind*** quanto o ***Address Sanitizer*** identificaram corretamente o problema. Privilegia-se, no entanto, o ***Address Sanitizer*** devido à informação extra que providencia, como o endereço de memória onde o *stack buffer overflow* ocorreu. Tanto o ***IKOS*** como o ***scan-build*** sinalizaram o comando `strcpy()` como potencialmente perigoso, mas não ofereceram mais informação por não terem contexto adicional. O ***infer*** não identificou nenhum problema. Conclui-se, então, que a análise dinâmica aparenta ser mais útil para este tipo de problemas, visto que a análise estática é pouco informativa/explícita sobre a existência efetiva da vulnerabilidade em questão.
 
-TODO: melhorar
+Em síntese, as ferramentas dinâmicas auxiliaram a encontrar a vulnerabilidade ao, perante certos *inputs*, sinalizarem corretamente a ocorrência de um *buffer overflow*. As ferramentas estáticas salientaram a possível falha de segurança na utilização da função `strcpy()` o que, ainda que não explicite exatamente a vulnerabilidade em questão, contribui para o desenvolvimento de código mais seguro.
+
+As principais limitações encontradas residiram na baixa relevância das mensagens de erro das ferramentas estáticas, bem como na necessidade de correr o programa com *inputs* específicos para que as ferramentas dinâmicas emitissem o alerta adequado para o erro, visto que *inputs* pequenos não originam qualquer *stack overflow*, mas a vulnerabilidade não deixa de existir nem de ser explorável. Além disso, foi necessário utilizar as *flags* corretas do ***Address Sanitizer*** (`fsanitize=address` e `fsanitize=undefined`) para ativar os *sanitizers* apropriados à deteção desta vulnerabilidade. Em nenhum caso foi necessário alterar o código original do programa, o que é um aspeto positivo a realçar.
 
 ## 155/156 - `os_cmd_scope`
 
@@ -168,6 +191,53 @@ Assim sendo, existe uma principal CWE associada a esta vulnerabilidade:
 
 Note-se que, dadas as chamadas às funções `strcpy()` e `strcat()` sem a devida validação do tamanho do *input*, podem ainda ser concretizados ataques de *buffer overflow*, tal como explicado anteriormente, estando estes casos igualmente associados às CWEs anteriores, pelo que estas não serão novamente exploradas.
 
+O programa contido em `os_cmd_scope-good.c` apresenta uma possível correção para esta falha.
+
+```c
+#define SIZE_CMD 10
+const char cmd[SIZE_CMD] = "/bin/cat ";
+
+/*
+	One of the most basic filtering, remove the ';'
+
+	SAMATE Edit: replaced by whitelisting to prevent command injection based on other operators like "&&"
+*/
+void purify(char *__buff)
+{
+	char buf[BUFSIZ]="";
+	char *c = __buff, *b = buf;
+	for (;*c != '\0';c++)
+	{
+			if(isalnum(*c) || *c == '/' || *c == '_' || *c == ' ' || *c == '.')
+				*b++ = *c;
+	}
+	*b = '\0';
+	strcpy(__buff, buf);
+}
+
+void runCommand(char *str) 
+{
+	purify(str);    						            /* FIX */
+	if (system(str) < 0)
+		fprintf(stderr, "Error running command %s\n", str);
+}
+
+int main(int argc, char *argv[])
+{
+	char sys[BUFSIZ]="";
+	char buff[BUFSIZ];
+	if (fgets(buff,BUFSIZ - SIZE_CMD,stdin))
+	{
+		strcat(sys, cmd);
+		strcat(sys, buff);
+		runCommand(sys);
+	}
+	return 0;
+}
+```
+
+No código exposto, a função `purify()` é chamada antes da execução do comando pelo sistema operativo. Ora esta função é responsável por realizar *whitelisting* do *input* introduzido pelo utilizador de maneira a prevenir a injeção de comandos, removendo todos os caracteres que não sejam alfanuméricos, `/`, `_`, ` ` ou `.`, ou seja, impedindo a execução de múltiplos comandos através dos operadores `;`, `|` ou `&&`, por exemplo. Deste modo, corrige-se a vulnerabilidade de *command injection* anteriormente existente.
+
 ### *Vulnerability Scanners*
 
 Como o código do programa está também escrito em C/C++, pode correr-se o *scanner* de vulnerabilidades ***Flawfinder***.
@@ -190,7 +260,7 @@ Finalmente, foi igualmente executado o ***SemGrep***.
 
 Para além de realçar a vulnerabilidade de *command injection* devido à ausência de neutralização do *input*, o ***SemGrep*** alerta para a chamada à função `system()`, que deve ser evitada precisamente por permitir a execução de múltiplos comandos de forma eventualmente indevida. Assim sendo, a ferramenta sugere a utilização de outras interfaces mais restritivas, como `execve()`. Em ambas as situações, a CWE-78 é corretamente identificada.
 
-TODO: conclusão
+Em conclusão, todos os *vulnerability scanners* experimentados foram capazes de assinalar a vulnerabilidade presente. Isto dever-se-á ao facto de as três ferramentas realizarem *taint analysis* para identificarem o fluxo percorrido pelo *input* do utilizador, de maneira a observarem que este acaba por ser incluindo na chamada à função `system()`, para ser posteriormente executado. Efetivamente, as ferramentas assinalaram o facto de ser introduzido *input* não sanitizado em chamadas ao sistema operativo, o que constituiu uma vulnerabilidade passível de ser explorada. Esta conclusão materializa-se no mapeamento correto nas CWEs associadas, automaticamente.
 
 ### Ferramentas de Análise
 
@@ -356,32 +426,72 @@ Ora, o resultado apresentado pelo ***Frama-C*** não foi conclusivo, visto que a
 
 Já tendo sido feita uma análise abrangente do problema em causa, optou-se por não se executar a ferramenta ***SMACK***. A par disso, também não se usou ***ctverif***, por não fazer sentido realizar *constant-time analysis* neste programa.
 
-Por último, foi corrida a ferramenta ***infer***, para experimentar mais uma abordagem de *taint *analysis*.
+Por último, foi corrida a ferramenta ***infer***, para experimentar mais uma abordagem de *taint *analysis*. Para tal, foi acrescentada a linha `taint(buff)` ao ficheiro com o código original, de modo a "pintar" o *input do utilizador, resultando no código abaixo.
 
-TODO: INFER
+```c
+#define SIZE_CMD 14
+const char cmd[SIZE_CMD] = "/usr/bin/cat ";
+
+void runCommand(char *str) 
+{
+	if(system(str) < 0)							        /* FLAW */
+		fprintf(stderr, "system() failed");
+}
+
+int main(int argc, char *argv[])
+{
+	char sys[512];
+	char buff[512];
+	if (fgets(buff,512 - SIZE_CMD,stdin))
+	{
+		taint(buff);									/* INFER */
+		strcpy(sys, cmd);
+		strcat(sys, buff);
+		runCommand(sys);
+	}
+	return 0;
+}
+```
+
+Além disso, foi criado o ficheiro `.inferconfig`, com o seguinte conteúdo.
+
+```
+{
+  "force-delete-results-dir": true,
+  "quandary-sources": [
+    {
+      "procedure": "taint",
+      "kind": "Other",
+      "index": "0"
+    }
+  ],
+  "quandary-sinks": [
+  ],
+  "quandary-sanitizers": [
+  ],
+  "quandary-endpoints": [
+  ]
+}
+```
+
+Assim, foi executada a ferramenta ***infer***, obtendo-se o *output* exposto.
+
+![infer](/Lab1/images/155-infer.png)
+
+Ao contrário do esperado, o resultado não mostra que, no *sink*, o conteúdo esteja "pintado". Apesar de o ***infer*** definir automaticamente algumas funções críticas - como é o caso de `system()` - como *sinks* e de o conteúdo de `buff` estar corretamente "pintado" - dada a chamada à função `taint(buff)` -, a ferramenta não encontrou qualquer problema com o código, deixando escapar a vulnerabilidade de *command injection*.
 
 ### Conclusão
 
-TODO: conclusão
+Concluindo, as ferramentas dinâmicas capazes de realizar *taint analysis* (***Taintgrind*** e ***Clang Data Flow Sanitizer***) conseguiram detetar corretamente a falha de *command injection*. Além disso, tal como seria expectável, as ferramentas para análise de memória (***Valgrind*** e ***Address Sanitizer***) não identificaram qualquer problema com o programa. Por seu lado, as técnicas de análise estática (***scan-build***, ***IKOS***, ***Frama-C*** e ***infer***) também não alertaram para a falha de *command injection*.
+Assim sendo, não há dúvidas de que a análise dinâmica é a mais adequada para detetar vulnerabilidades deste tipo.
+
+Em resumo, as abordagens dinâmicas, através de *taint analysis*, evidenciaram que o *input* proveniente do utilizador e não sanitizado alcançava a chamada à função `system()`, constituindo uma falha de segurança. As técnicas de análise estática não foram capazes de assinalar este problema, demonstrando-se ineficazes neste caso.
+
+Assim, surgem limitações evidentes na utilização de ferramentas estáticas para a deteção de *command injection*, visto que não foi possível identificar o problema em questão, facilmente visível pelas ferramentas dinâmicas. A par disso, note-se que, para as análises dinâmicas serem bem-sucedidas, foi necessário, em todos os casos, efetuar algumas modificações no código original - de modo a identificar a *source* e o *sink* -, o que aumenta o trabalho manual exigido para o desenvolvimento de *software* seguro. Ainda assim, feitas as alterações necessárias, as técnicas dinâmicas funcionaram conforme esperado, identificando o problema tal como pretendido.
 
 ## Análise Global
 
-| **Ferramentas de Análise Dinâmica** | *Buffer Overflow* | *Command Injection* |
-| ----------------------------------- | ----------------- | ------------------- |
-| ***Valgrind***                      |        SIM        |         NÃO         |
-| ***Address Sanitizer***             |        SIM        |         NÃO         |
-| ***Taintgrind***                    |         -         |         SIM         |
-| ***Clang Data Flow Sanitizer***     |         -         |         SIM         |
-| ***TIMECOP***                       |         -         |          -          |
-
-| **Ferramentas de Análise Estática** | *Buffer Overflow* | *Command Injection* |
-| ----------------------------------- | ----------------- | ------------------- |
-| ***scan-build***                    |        SIM        |         NÃO         |
-| ***IKOS***                          |        SIM        |         NÃO         |
-| ***Frama-C***                       |         -         |         NÃO         |
-| ***SMACK***                         |         -         |          -          |
-| ***ctverif***                       |         -         |          -          |
-| ***infer***                         |         ?         |          ?          |
+Em suma, apresentam-se abaixo os resultados obtidos por todas as ferramentas utilizadas para as vulnerabilidades em causa: *buffer overflow* e *command injection*.
 
 | ***Vulnerability Scanners*** | *Buffer Overflow* | *Command Injection* |
 | ---------------------------- | ----------------- | ------------------- |
@@ -392,3 +502,22 @@ TODO: conclusão
 | ***SonarCloud***             |         -         |          -          |
 | ***Snyk Code Checker***      |        SIM        |         SIM         |
 | ***SemGrep***                |        NÃO        |         SIM         |
+
+| Ferramentas de Análise Dinâmica | *Buffer Overflow* | *Command Injection* |
+| ------------------------------- | ----------------- | ------------------- |
+| ***Valgrind***                  |        SIM        |         NÃO         |
+| ***Address Sanitizer***         |        SIM        |         NÃO         |
+| ***Taintgrind***                |         -         |         SIM         |
+| ***Clang Data Flow Sanitizer*** |         -         |         SIM         |
+| ***TIMECOP***                   |         -         |          -          |
+
+| Ferramentas de Análise Estática | *Buffer Overflow* | *Command Injection* |
+| ------------------------------- | ----------------- | ------------------- |
+| ***scan-build***                |        SIM        |         NÃO         |
+| ***IKOS***                      |        SIM        |         NÃO         |
+| ***Frama-C***                   |         -         |         NÃO         |
+| ***SMACK***                     |         -         |          -          |
+| ***ctverif***                   |         -         |          -          |
+| ***infer***                     |        NÃO        |         NÃO         |
+
+Globalmente, conclui-se que, por um lado, tanto as ferramentas de análise dinâmica quanto as ferramentas de análise estática são boas para detetar casos de *buffer overflow*. Por outro lado, apenas as ferramentas de análise dinâmica são capazes de, através de *taint analysis*, identificar a falha de *command injection*.
