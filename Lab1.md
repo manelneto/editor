@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-Este código contém uma vulnerabilidade de *buffer overflow*, visto que o *input* do utilizador fornecido como primeiro argumento do programa (`argv[1]`) é copiado pela função `strcpy()` para o *array* `str` de tamanho fixo 10, não se verificando se o tamanho do *input* é menor do que o tamanho do *array*, ou seja, permitindo que os limites da memória alocada para o *array* `str` sejam ultrapassados. Como tal, um atacante pode inserir um *input* com comprimento superior ou igual a 10 *bytes* de maneira a escrever indevidamente por cima de memória pertencente à *stack*, realizando um ataque de *buffer overflow* na *stack*.
+Este código apresenta uma vulnerabilidade de *buffer overflow*, visto que o *input* do utilizador fornecido como primeiro argumento do programa (`argv[1]`) é copiado pela função `strcpy()` para o *array* `str` de tamanho fixo 10, não se verificando se o tamanho do *input* é menor do que o tamanho do *array*, ou seja, permitindo que os limites da memória alocada para o *array* `str` sejam ultrapassados. Como tal, um atacante pode inserir um *input* com comprimento superior a 10 *bytes* de maneira a escrever indevidamente por cima de memória pertencente à *stack*, realizando um ataque de *buffer overflow* na *stack*.
 
 Efetivamente, as execuções seguintes demonstram a ocorrência de *segmentation faults* quando o *input* fornecido ao programa é suficientemente maior do que o tamanho do *buffer* ao ponto de escrever por cima de zonas de memórias não alocadas ao processo em execução.
 
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-Neste caso, a utilização de `strncpy()` - em vez de `strcpy()` - com o número de *bytes* a copiar limitado a `MAX_SIZE - 1` *bytes* garante não é possível explorar falha de *buffer overflow* anteriormente exposta.
+Neste caso, a utilização de `strncpy()` - em vez de `strcpy()` - com o número de *bytes* a copiar limitado a `MAX_SIZE - 1` garante não é possível explorar a falha de *buffer overflow* anteriormente exposta.
 
 ### *Vulnerability Scanners*
 
@@ -69,7 +69,7 @@ Além disso, o ***Snyk Code Checker*** também identifica corretamente a falha n
 
 No entanto, a CWE associada é erradamente identificada como sendo a **[CWE-122: Heap-based Buffer Overflow](https://cwe.mitre.org/data/definitions/122)**, o que não corresponde à realidade, dado que o *buffer* afetado é alocado na *stack* - por ser uma variável local - e não na *heap* - por não existir qualquer chamada à função `malloc()`.
 
-Foi também testado o ***SemGrep***, mas este *scanner* não detetou qualquer vulnerabilidade no programa usando apenas as regras predefinidas.
+Foi também testado o ***SemGrep***, mas este *scanner* não detetou qualquer vulnerabilidade no programa, usando apenas as regras predefinidas.
 
 Em suma, o ***Flawfinder*** e o ***Snyk Code Checker*** conseguiram identificar a vulnerabilidade presente. O que aparenta acontecer é que ambos contêm uma lista de funções potencialmente inseguras e verificam se estas são utilizadas no programa. Além disso, o ***Snyk Code Checker*** demonstrou também realizar *taint analysis*, detetando que o *input* do utilizador proveniente de `argv[1]` (*source*) flui até `strcpy()` (*sink*), sem ser sanitizado, o que representa uma falha de segurança. Posteriormente, são listadas as CWEs associadas (com erro no caso do ***Snyk Code Checker***). O ***SemGrep*** aparenta, no entanto, fazer apenas *taint analysis*, sendo essa a razão para não identificar a vulnerabilidade de *buffer overflow* no  `strcpy()`.
 
@@ -94,7 +94,7 @@ De seguida, testou-se a utilização do ***Address Sanitizer*** enquanto detetor
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-1.png)
 ![Address Sanitizer fsanitize=address](/Lab1/images/145-addresssanitizer-address-2.png)
 
-Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque a *flag* utilizada ativa o *AddressSanitizer* (ASan) propriamente dito (visto que existem outras categorias de *sanitizers*, a explicar posteriormente) que é projetado para encontrar casos de: *use after free*, *heap buffer overflow*, *stack buffer overflow*, *global buffer overflow*, *use after return*, *use after scope*, *initialization order bugs* e *memory leaks*. Sendo esta vulnerabilidade um caso de *stack buffer overflow*, foi corretamente detetada pelo *Address Sanitizer*. Tecnicamente, o *AddressSanitizer* contém código que permite fazer essas verificações, como *redzones* na *stack* e interseção de acessos a memória. 
+Em primeiro lugar, quando o programa foi compilado com a *flag* `fsanitize=address`, o ***Address Sanitizer*** foi capaz de identificar corretamente o *stack buffer overflow*, bem como o endereço em que ocorreu. Esta abordagem funcionou porque a *flag* utilizada ativa o *AddressSanitizer* (ASan) propriamente dito - visto que existem outras categorias de *sanitizers*, a explicar posteriormente - que é projetado para encontrar casos de *use after free*, *heap buffer overflow*, *stack buffer overflow*, *global buffer overflow*, *use after return*, *use after scope*, *initialization order bugs* e *memory leaks*. Sendo esta vulnerabilidade um caso de *stack buffer overflow*, foi corretamente detetada pelo *Address Sanitizer*. Tecnicamente, o *AddressSanitizer* contém código que permite fazer essas verificações, como *redzones* na *stack* e interseção de acessos a memória. 
 
 Em segundo lugar, compilou-se o programa com a *flag* `fsanitize=leak`.
 
@@ -125,13 +125,13 @@ Inicialmente, a ferramenta ***scan-build*** foi executada por se tratar de uma s
 
 ![scan-build](/Lab1/images/145-scanbuild.png)
 
-Efetivamente, o ***scan-build*** alertou corretamente para o *bug* encontrado no código, em particular na chamada à função `strcpy()`. Esta deteção funcionou porque o ***Scan-build*** emite um aviso/alerta para qualquer utilização de `strcpy()`, mesmo que não constitua uma vulnerabilidade. Neste caso, é realmente uma chamada potencialmente insegura, por não se verificarem os limites do *input*.
+Efetivamente, o ***scan-build*** alertou corretamente para o *bug* encontrado no código, em particular na chamada à função `strcpy()`. Esta deteção funcionou porque o ***scan-build*** emite um aviso/alerta para qualquer utilização de `strcpy()`, mesmo que não constitua uma vulnerabilidade. Neste caso, é realmente uma chamada potencialmente insegura, por não se verificarem os limites do *input*.
 
-Posteriormente, foi executado a analisador estático ***IKOS*** contra o mesmo código C/C++ para investigar a segurança do programa.
+Posteriormente, foi executado o analisador estático ***IKOS*** contra o mesmo código C/C++ para investigar a segurança do programa.
 
 ![IKOS](/Lab1/images/145-ikos.png)
 
-O ***IKOS*** identificou corretamente o programa como potencialmente inseguro por quatro razões. As duas primeiras razões referem-se à possível utilização do valor de `argv[1]` sem ter sido inicializado, podendo, por isso, ser nulo. No entanto, estes dois casos não se aplicam na prática, porque, ao verificar-se que `argc > 1`, garante-se que `argv[1]` contém algum valor, nomeadamente o *input* fornecido pelo utilizador ao programa. Após isso, surge mais um aviso relativamente ao conteúdo de `argv[1]` enquanto acesso a memória, mas também não é esse o objeto principal da análise de vulnerabilidades. Finalmente, o último aviso da ferramenta salienta a possibilidade da ocorrência de um *buffer overflow*, como é o caso. O ***IKOS*** conseguiu identificar esta vulnerabilidade devido ao seu modo de funcionamento: o ***IKOS*** contém uma lista de funções potencialmente inseguras e emite um alerta se alguma dessas funções for utilizada - como é o caso de `strcpy()` -, juntamente com sugestões para evitar essa vulnerabilidade.
+O ***IKOS*** identificou corretamente o programa como potencialmente inseguro por quatro razões. As duas primeiras razões referem-se à possível utilização do valor de `argv[1]` sem ter sido inicializado, podendo, por isso, ser nulo. No entanto, estes dois casos não se aplicam na prática, porque, ao verificar-se que `argc > 1`, garante-se que `argv[1]` contém algum valor, nomeadamente o *input* fornecido pelo utilizador ao programa. Após isso, surge mais um aviso relativamente ao conteúdo de `argv[1]` enquanto acesso a memória, mas também não é esse o objeto principal da análise de vulnerabilidades. Finalmente, o último aviso da ferramenta salienta a possibilidade da ocorrência de um *buffer overflow*, como é o caso. O ***IKOS*** conseguiu identificar esta vulnerabilidade devido ao seu modo de funcionamento: contém uma lista de funções potencialmente inseguras e emite um alerta se alguma dessas funções for utilizada - como é o caso de `strcpy()` -, juntamente com sugestões para evitar essa vulnerabilidade.
 
 A ferramenta ***Frama-C*** não foi testada, por ser especialmente focada em programas de tamanho industrial escritos em ISO C99, o que não se aplica nesta situação em particular, dada a simplicidade do código. Por já terem sido experimentadas outras ferramentas estáticas, descartou-se a utilização de ***SMACK***. Além disto, não sendo este um caso para o qual faz sentido realizar *constant-time analysis*, não se correu ***ctverif***.
 
@@ -143,7 +143,7 @@ Esta análise - executada quer com as verificações predefinidas do ***infer***
 
 ### Conclusão
 
-Relativamente às ferramentas dinâmicas, tanto o ***Valgrind*** quanto o ***Address Sanitizer*** identificaram corretamente o problema. Privilegia-se, no entanto, o ***Address Sanitizer*** devido à informação extra que providencia, como o endereço de memória onde o *stack buffer overflow* ocorreu. Tanto o ***IKOS*** como o ***scan-build*** sinalizaram o comando `strcpy()` como potencialmente perigoso, mas não ofereceram mais informação por não terem contexto adicional. O ***infer*** não identificou nenhum problema. Conclui-se, então, que a análise dinâmica aparenta ser mais útil para este tipo de problemas, visto que a análise estática é pouco informativa/explícita sobre a existência efetiva da vulnerabilidade em questão.
+Relativamente às ferramentas dinâmicas, tanto o ***Valgrind*** quanto o ***Address Sanitizer*** identificaram corretamente o problema. Privilegia-se, no entanto, o ***Address Sanitizer*** devido à informação extra que providencia, como o endereço de memória onde ocorre o *stack buffer overflow*. Tanto o ***IKOS*** como o ***scan-build*** sinalizaram o comando `strcpy()` como potencialmente perigoso, mas não ofereceram mais informação por não terem contexto adicional. O ***infer*** não identificou nenhum problema. Conclui-se, então, que a análise dinâmica aparenta ser mais útil para este tipo de problemas, visto que a análise estática é pouco informativa/explícita sobre a existência efetiva da vulnerabilidade em questão.
 
 Em síntese, as ferramentas dinâmicas auxiliaram a encontrar a vulnerabilidade ao, perante certos *inputs*, sinalizarem corretamente a ocorrência de um *buffer overflow*. As ferramentas estáticas salientaram a possível falha de segurança na utilização da função `strcpy()` o que, ainda que não explicite exatamente a vulnerabilidade em questão, contribui para o desenvolvimento de código mais seguro.
 
@@ -189,7 +189,7 @@ Assim sendo, existe uma principal CWE associada a esta vulnerabilidade:
 
 ![CWE 78](/Lab1/images/155-cwe.png)
 
-Note-se que, dadas as chamadas às funções `strcpy()` e `strcat()` sem a devida validação do tamanho do *input*, podem ainda ser concretizados ataques de *buffer overflow*, tal como explicado anteriormente, estando estes casos igualmente associados às CWEs anteriores, pelo que estas não serão novamente exploradas.
+Note-se que, dadas as chamadas às funções `strcpy()` e `strcat()` sem a devida validação do tamanho do *input*, podem ainda ser concretizados ataques de *buffer overflow*, tal como explicado anteriormente. Como estes casos estão igualmente associados às CWEs anteriores, não serão novamente explorados.
 
 O programa contido em `os_cmd_scope-good.c` apresenta uma possível correção para esta falha.
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-No código exposto, a função `purify()` é chamada antes da execução do comando pelo sistema operativo. Ora esta função é responsável por realizar *whitelisting* do *input* introduzido pelo utilizador de maneira a prevenir a injeção de comandos, removendo todos os caracteres que não sejam alfanuméricos, `/`, `_`, ` ` ou `.`, ou seja, impedindo a execução de múltiplos comandos através dos operadores `;`, `|` ou `&&`, por exemplo. Deste modo, corrige-se a vulnerabilidade de *command injection* anteriormente existente.
+No código exposto, a função `purify()` é chamada antes da execução do comando pelo sistema operativo. Ora, esta função é responsável por realizar *whitelisting* do *input* introduzido pelo utilizador de maneira a prevenir a injeção de comandos, removendo todos os caracteres que não sejam alfanuméricos, `/`, `_`, ` ` ou `.`, ou seja, impedindo a execução de múltiplos comandos através dos operadores `;`, `|` ou `&&`, por exemplo. Deste modo, corrige-se a vulnerabilidade de *command injection* anteriormente existente.
 
 ### *Vulnerability Scanners*
 
@@ -244,13 +244,13 @@ Como o código do programa está também escrito em C/C++, pode correr-se o *sca
 
 ![Flawfinder](/Lab1/images/155-flawfinder.png)
 
-De facto, o ***Flawfinder*** deteta corretamente a vulnerabilidade de *command injection* em causa no código exposto, identificando a CWE associada (CWE-78), tal como seria expectável. A par disso, esta ferramenta alerta ainda para as restantes CWEs já abordadas (CWE-119 e CWE-120) relacionadas com os possível ataques de *buffer overflow*.
+De facto, o ***Flawfinder*** deteta corretamente a vulnerabilidade de *command injection* em causa no código exposto, identificando a CWE associada (CWE-78), tal como seria expectável. A par disso, esta ferramenta alerta ainda para as restantes CWEs já abordadas (CWE-119 e CWE-120), relacionadas com os possíveis ataques de *buffer overflow*.
 
 De forma análoga à anterior, testou-se também o ***Snyk Code Checker*** para este caso.
 
 ![Snyk Code Checker](/Lab1/images/155-snyk.png)
 
-Ora, o ***Snyk Code Checker*** também identifica corretamente a falha no código e a CWE associada.
+Ora, o ***Snyk Code Checker*** também identifica corretamente a falha no código e a CWE associada. Esta conclusão é alcançada através da realização de *taint analysis*, tal como é possível verificar pelos termos *source* e *sink* apresentados na interface.
 
 Finalmente, foi igualmente executado o ***SemGrep***.
 
@@ -260,7 +260,7 @@ Finalmente, foi igualmente executado o ***SemGrep***.
 
 Para além de realçar a vulnerabilidade de *command injection* devido à ausência de neutralização do *input*, o ***SemGrep*** alerta para a chamada à função `system()`, que deve ser evitada precisamente por permitir a execução de múltiplos comandos de forma eventualmente indevida. Assim sendo, a ferramenta sugere a utilização de outras interfaces mais restritivas, como `execve()`. Em ambas as situações, a CWE-78 é corretamente identificada.
 
-Em conclusão, todos os *vulnerability scanners* experimentados foram capazes de assinalar a vulnerabilidade presente. Isto dever-se-á ao facto de as três ferramentas realizarem *taint analysis* para identificarem o fluxo percorrido pelo *input* do utilizador, de maneira a observarem que este acaba por ser incluindo na chamada à função `system()`, para ser posteriormente executado. Efetivamente, as ferramentas assinalaram o facto de ser introduzido *input* não sanitizado em chamadas ao sistema operativo, o que constituiu uma vulnerabilidade passível de ser explorada. Esta conclusão materializa-se no mapeamento correto nas CWEs associadas, automaticamente.
+Em conclusão, todos os *vulnerability scanners* experimentados foram capazes de assinalar a vulnerabilidade presente. Isto dever-se-á ao facto de as três ferramentas realizarem *taint analysis* para identificarem o fluxo percorrido pelo *input* do utilizador, de maneira a observarem que este acaba por ser incluído na chamada à função `system()`, para ser posteriormente executado. Efetivamente, as ferramentas assinalaram o facto de ser introduzido *input* não sanitizado em chamadas ao sistema operativo, o que constituiu uma vulnerabilidade passível de ser explorada. Esta conclusão materializa-se no mapeamento correto nas CWEs associadas, automaticamente.
 
 ### Ferramentas de Análise
 
@@ -268,7 +268,7 @@ No sentido de analisar esta vulnerabilidade de *command injection*, foram seleci
 
 #### Análise Dinâmica
 
-A ferramentas ***Valgrind*** não é adequada para este caso, visto que o seu propósito é analisar erros de memória e não vulnerabilidades de *command injection*. Este facto é facilmente comprovável através da execução da mesma, que não retorna qualquer *output* relevante.
+A ferramenta ***Valgrind*** não é adequada para este caso, visto que o seu propósito é analisar erros de memória e não vulnerabilidades de *command injection*. Este facto é facilmente comprovável através da execução da mesma, que não retorna qualquer *output* relevante.
 
 ![Valgrind](/Lab1/images/155-valgrind-1.png)
 
@@ -386,7 +386,7 @@ Em segundo lugar, foi corrida a ferramenta ***IKOS*** para realizar uma análise
 
 ![IKOS](/Lab1/images/155-ikos-2.png)
 
-Similarmente, o ***IKOS*** também não detetou a vulnerabilidade de *command injection* limitando-se a assinalar que a chamada à função `system()` pode representar uma falha de segurança. Contudo, este aviso surge sempre que exista qualquer chamada a `system()` no código programa analisado, independentemente de serem - ou não - efetuadas as verificações de segurança adequadas. Além disso, foram ainda lançados 6 avisos relativos a erros de memória potencialmente não inicializada ou indevidamente acedida, mas não são o principal objeto da análise a efetuar.
+Similarmente, o ***IKOS*** também não detetou a vulnerabilidade de *command injection*, limitando-se a assinalar que a chamada à função `system()` pode representar uma falha de segurança. Contudo, este aviso surge sempre que exista qualquer chamada a `system()` no código do programa analisado, independentemente de serem - ou não - efetuadas as verificações de segurança adequadas. Além disso, foram ainda lançados 6 avisos relativos a erros de memória potencialmente não inicializada ou indevidamente acedida, mas não são o principal objeto da análise a efetuar.
 
 Em terceiro lugar, experimentou-se a utilização de ***Frama-C*** para detetar *command injection*. Para tal, modificou-se ligeiramente o código original e lançou-se a GUI do ***Frama-C***, o que se expõe abaixo.
 
@@ -426,7 +426,7 @@ Ora, o resultado apresentado pelo ***Frama-C*** não foi conclusivo, visto que a
 
 Já tendo sido feita uma análise abrangente do problema em causa, optou-se por não se executar a ferramenta ***SMACK***. A par disso, também não se usou ***ctverif***, por não fazer sentido realizar *constant-time analysis* neste programa.
 
-Por último, foi corrida a ferramenta ***infer***, para experimentar mais uma abordagem de *taint *analysis*. Para tal, foi acrescentada a linha `taint(buff)` ao ficheiro com o código original, de modo a "pintar" o *input do utilizador, resultando no código abaixo.
+Por último, foi corrida a ferramenta ***infer***, para experimentar mais uma abordagem de *taint analysis*. Para tal, foi acrescentada a linha `taint(buff)` ao ficheiro com o código original, de modo a "pintar" o *input* do utilizador, resultando no código abaixo.
 
 ```c
 #define SIZE_CMD 14
@@ -478,7 +478,7 @@ Assim, foi executada a ferramenta ***infer***, obtendo-se o *output* exposto.
 
 ![infer](/Lab1/images/155-infer.png)
 
-Ao contrário do esperado, o resultado não mostra que, no *sink*, o conteúdo esteja "pintado". Apesar de o ***infer*** definir automaticamente algumas funções críticas - como é o caso de `system()` - como *sinks* e de o conteúdo de `buff` estar corretamente "pintado" - dada a chamada à função `taint(buff)` -, a ferramenta não encontrou qualquer problema com o código, deixando escapar a vulnerabilidade de *command injection*. Outras tentativas de obter um resultado diferente envolveram alterar o arquivo `.inferconfig` para que, ao ajustar as definições das quadrary-sources ou das quadrary-sinks, a ferramenta pudesse reconhecer com precisão a vulnerabilidade. No entanto, essas alterações não foram bem-sucedidas, continuando a vulnerabilidatde por detetar.
+Ao contrário do esperado, o resultado não mostra que, no *sink*, o conteúdo esteja "pintado". Apesar de o ***infer*** definir automaticamente algumas funções críticas - como é o caso de `system()` - como *sinks* e de o conteúdo de `buff` estar corretamente "pintado" - dada a chamada à função `taint(buff)` -, a ferramenta não encontrou qualquer problema com o código, deixando escapar a vulnerabilidade de *command injection*. Outras tentativas de obter um resultado diferente envolveram alterar o arquivo `.inferconfig` para que, ao ajustar as definições das `quadrary-sources` e/ou das `quadrary-sinks`, a ferramenta pudesse reconhecer com precisão a vulnerabilidade. No entanto, estas alterações não foram bem-sucedidas, continuando a vulnerabilidatde por detetar.
 
 ### Conclusão
 
