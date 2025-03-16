@@ -478,7 +478,7 @@ Assim, foi executada a ferramenta ***infer***, obtendo-se o *output* exposto.
 
 ![infer](/Lab1/images/155-infer.png)
 
-Ao contrário do esperado, o resultado não mostra que, no *sink*, o conteúdo esteja "pintado". Apesar de o ***infer*** definir automaticamente algumas funções críticas - como é o caso de `system()` - como *sinks* e de o conteúdo de `buff` estar corretamente "pintado" - dada a chamada à função `taint(buff)` -, a ferramenta não encontrou qualquer problema com o código, deixando escapar a vulnerabilidade de *command injection*.
+Ao contrário do esperado, o resultado não mostra que, no *sink*, o conteúdo esteja "pintado". Apesar de o ***infer*** definir automaticamente algumas funções críticas - como é o caso de `system()` - como *sinks* e de o conteúdo de `buff` estar corretamente "pintado" - dada a chamada à função `taint(buff)` -, a ferramenta não encontrou qualquer problema com o código, deixando escapar a vulnerabilidade de *command injection*. Outras tentativas de obter um resultado diferente envolveram alterar o arquivo `.inferconfig` para que, ao ajustar as definições das quadrary-sources ou das quadrary-sinks, a ferramenta pudesse reconhecer com precisão a vulnerabilidade. No entanto, essas alterações não foram bem-sucedidas, continuando a vulnerabilidatde por detetar.
 
 ### Conclusão
 
