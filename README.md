@@ -10,6 +10,5 @@ Group Members:
 * 202108744 - Manuel Neto
 * 201804979 - André Serra
 
-## Whatever else
+## ---
 
-Random text
