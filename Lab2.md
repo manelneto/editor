@@ -50,7 +50,7 @@ Como tal, um atacante pode inserir um *input* com um formato de um endereço IP 
 
 Efetivamente, as execuções seguintes demonstram a ocorrência de *segmentation faults* quando o *input* fornecido ao programa cumpre o formato de um endereço IP válido e é suficientemente maior do que o tamanho do *buffer* ao ponto de escrever por cima de zonas de memórias não alocadas ao processo em execução. Por exemplo, os *inputs* `1234567.1234567.1234567.1234567`, `0.0.0.01234567890123456789` e `888888.888888.888888.888888` evidenciam esta vulnerabilidade.
 
-![Exemplos de Execução Maliciosos](/Lab1/images/malign-examples.png)
+![Exemplos de Execução Maliciosos](/Lab2/images/malign-examples.png)
 
 ### Ferramentas de *Fuzzing Black-Box*
 
