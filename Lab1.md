@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-Neste caso, a utilização de `strncpy()` - em vez de `strcpy()` - com o número de *bytes* a copiar limitado a `MAX_SIZE - 1` garante não é possível explorar a falha de *buffer overflow* anteriormente exposta.
+Neste caso, a utilização de `strncpy()` - em vez de `strcpy()` - com o número de *bytes* a copiar limitado a `MAX_SIZE - 1` garante que não é possível explorar a falha de *buffer overflow* anteriormente exposta.
 
 ### *Vulnerability Scanners*
 
