@@ -136,8 +136,81 @@ Para facilitar a execução do ***Blab***, foi desenvolvido o *script* `fuzz.py`
 
 ## Ferramentas de Execução Simbólica
 
+As ferramentas de execução simbólica permitem testar o programa com base nos diferentes caminhos de execução possíveis, aumentando a cobertura do código através da utilização de variáveis simbólicas, que representam os diversos valores que a variável concreta pode assumir. Por isso, estas ferramentas apresentam frequentemente um desempenho superior aos testes manuais e/ou aleatórios.
+
 ### KLEE
+
+O ***KLEE*** é uma ferramenta de execução simbólica capaz de gerar automaticamente múltiplos *inputs* de teste de maneira a explorar uma grande quantidade de caminhos de execução. Contudo, como avaliar todas as execuções possíveis de um programa é um problema computacionalmente complexo, o ***KLEE*** limita a sua exploração a uma determinada profundidade.
+
+Para testar o programa `ip.c` com o ***KLEE***, é necessário fazer ligeiras alterações ao código original, que se expõem de seguida.
+
+```c
+#include <klee/klee.h>
+
+#define MAX_SIZE 16
+
+int check_ip(const char *ip) {
+    int dots = 0;
+    for (int i = 0; ip[i]; i++) {
+        if (ip[i] == '.')
+            dots++;
+        else if (!isdigit(ip[i]))
+            return 0;
+    }
+    return dots == 3;
+}
+
+int main() {
+    char input[32];
+    klee_make_symbolic(input, sizeof(input), "input");
+    input[31] = '\0';
+
+    char buffer[MAX_SIZE] = {0};
+
+    if (check_ip(input)) {
+        strcpy(buffer, input);                          /* FLAW */
+        printf("Valid IP: %s\n", buffer);
+    } else {
+        printf("Invalid IP\n");
+    }
+
+    return 0;
+}
+```
+
+Em particular, é necessário incluir a biblioteca `klee.h` e, na função `main()`, substituir a utilização da variável `argv[1]` por uma nova variável `char input[32]`. Esta variável `input` é - através da chamada à função `klee_make_symbolic()` - definida como a variável simbólica do programa, de maneira a assumir vários valores possíveis em diferentes ramos de execução criados pelo ***KLEE***. Deste modo, pretende-se testar o comportamento do programa perante diferentes valores da variável `input`, na expectativa de que algum deles passe na verificação da função `check_ip()` e tenha tamanho suficiente para causar um *buffer overflow* e a consequente *segmentation fault*. Para isso, define-se o tamanho de `input` (32) para o dobro do tamanho da variável `buffer` (16).
+
+A execução deste código ligeiramente modificado com o ***KLEE*** apresenta-se na imagem abaixo.
+
+![KLEE](/Lab2/images/klee-1.png)
+
+![KLEE](/Lab2/images/klee-2.png)
+
+![KLEE](/Lab2/images/klee-3.png)
+
+Como se evidencia pelas imagens acima, o ***KLEE*** não conseguiu detetar a falha de segurança presente no código, uma vez que nenhum fluxo de execução seguido originou um *buffer overflow*. Isto sucedeu porque, apesar de a variável simbólica `input` tomar alguns valores correspondentes a endereços IP válidos em formato, nenhum desses casos teve tamanho suficiente para escrever por cima de memória não alocada. Deste modo, nenhuma das execuções do programa originou uma *segmentation fault*.
+
+Note-se que os avisos lançados pelo ***KLEE*** no início da execução do programa não são impeditivos do seu correto funcionamento, mas meros indicadores sobre algumas chamadas a funções que não estão definidas no código analisado nem diretamente incluídas, pelo que não são suportadas. Não obstante este facto, o ***KLEE*** gerou 113179 testes, divididos em 23649 caminhos completamente executados e 89530 caminhos apenas parcialmente executados. Contudo, nenhum destes ramos levou a um *buffer overflow*.
+
+#### Conclusão
+
+Deste modo, o ***KLEE*** não conseguiu detetar a vulnerabilidade existente no programa. A incapacidade em detetar esta vulnerabilidade reside no facto de o ***KLEE*** ser uma ferramenta de execução simbólica, projetada para testar múltiplos ramos/caminhos de execução, mas esta vulnerabilidade ocorrer apenas perante um *input* com um formato extremamente específico, dadas as restrições subjacentes à verificação do endereço IP. Como tal, por mais valores que a variável simbólica possa assumir, é improvável que algum deles seja um endereço IP válido e com tamanho superior ao da memória alocada, pelo que esta ferramenta se mostra incapaz de cumprir o efeito pretendido, a não ser que gere *inputs* seguindo determinadas regras gramaticais, como no caso anterior.
+
+O código do programa original teve de ser ligeiramente modificado para converter a variável de *input* numa variável simbólica, de maneira a aproveitar as potencialidades do ***KLEE*** para instanciar diferentes valores concretos nesta variável, percorrendo os diversos caminhos de execução possíveis. Para esse efeito, utilizou-se a função `klee_make_symbolic()`. Todavia, nenhum dos valores assumidos pela variável foi capaz de *crashar* o programa e causar uma *segmentation fault*, deixando a vulnerabilidade de *buffer overflow* por detetar.
 
 ## Ferramentas de *Fuzzing Grey-Box*
 
 ### AFL
+
+## Análise Global
+
+Em suma, apresentam-se os resultados obtidos por todas as ferramentas de teste utilizadas com o propósito de detetar a vulnerabilidade de *buffer overflow* em causa.
+
+|      **Categoria**      | **Ferramenta** | **Resultado** |
+| ----------------------  | -------------- | ------------- |
+| ***Fuzzing Black-Box*** | ***Radamsa***  |      N/A      |
+| ***Fuzzing Black-Box*** |   ***Blab***   |      SIM      |
+| **Execução Simbólica**  |   ***KLEE***   |      NÃO      |
+| ***Fuzzing Grey-Box***  |   ***AFL***    |       ?       |
+
+Assim sendo, conclui-se que existem *tradeoffs* entre *fuzzing* e execução simbólica. TODO
