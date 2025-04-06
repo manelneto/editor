@@ -180,27 +180,47 @@ int main() {
 
 Em particular, é necessário incluir a biblioteca `klee.h` e, na função `main()`, substituir a utilização da variável `argv[1]` por uma nova variável `char input[32]`. Esta variável `input` é - através da chamada à função `klee_make_symbolic()` - definida como a variável simbólica do programa, de maneira a assumir vários valores possíveis em diferentes ramos de execução criados pelo ***KLEE***. Deste modo, pretende-se testar o comportamento do programa perante diferentes valores da variável `input`, na expectativa de que algum deles passe na verificação da função `check_ip()` e tenha tamanho suficiente para causar um *buffer overflow* e a consequente *segmentation fault*. Para isso, define-se o tamanho de `input` (32) para o dobro do tamanho da variável `buffer` (16).
 
-A execução deste código ligeiramente modificado com o ***KLEE*** apresenta-se na imagem abaixo.
+A compilação e execução deste código ligeiramente modificado com o ***KLEE*** apresenta-se na imagem abaixo.
 
 ![KLEE](/Lab2/images/klee-1.png)
-
 ![KLEE](/Lab2/images/klee-2.png)
-
 ![KLEE](/Lab2/images/klee-3.png)
+
+O comando de compilação `clang -I /home/klee/klee_src/include/ -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone ip-klee.c` chama o compilador `clang` para compilar o ficheiro `ip-klee.c`. A *flag* `-I` adiciona o diretório `/home/klee/klee_src/include/` aos caminhos nos quais procurar *headers*, para encontrar a biblioteca incluída `klee.h`. De seguida, a *flag* `-emit-llvm` faz com que o código gerado não seja binário, mas sim uma representação intermédia em LLVM, produzindo um ficheiro com a extensão `.bc`. A *flag* `-c` evita que o compilador faça *link* do programa, `-g` inclui informações de *debug* que são úteis para ferramentas de execução simbólica e `-O0` desativa otimizações de compilação, de maneira a não reorganizar o código, preservando as suas propriedades para ser analisado pelo ***KLEE***. Finalmente, `-Xclang` passa os argumentos diretamente ao *frontend* do compilador e `-disable-O0-optnone` impede a adição automática do atributo `optnone` às funções, ao utilizar `-O0`. O comando `klee --libc=uclibc ip-klee.bc` executa a ferramenta ***KLEE*** contra o programa `ip-klee.bc`, substituindo as funções da biblioteca `libc` por uma implementação compilada de forma simbólica (`uclibc`).
 
 Como se evidencia pelas imagens acima, o ***KLEE*** não conseguiu detetar a falha de segurança presente no código, uma vez que nenhum fluxo de execução seguido originou um *buffer overflow*. Isto sucedeu porque, apesar de a variável simbólica `input` tomar alguns valores correspondentes a endereços IP válidos em formato, nenhum desses casos teve tamanho suficiente para escrever por cima de memória não alocada. Deste modo, nenhuma das execuções do programa originou uma *segmentation fault*.
 
-Note-se que os avisos lançados pelo ***KLEE*** no início da execução do programa não são impeditivos do seu correto funcionamento, mas meros indicadores sobre algumas chamadas a funções que não estão definidas no código analisado nem diretamente incluídas, pelo que não são suportadas. Não obstante este facto, o ***KLEE*** gerou 113179 testes, divididos em 23649 caminhos completamente executados e 89530 caminhos apenas parcialmente executados. Contudo, nenhum destes ramos levou a um *buffer overflow*.
+Note-se que os avisos lançados pelo ***KLEE*** no início da execução do programa não são impeditivos do seu correto funcionamento, mas meros indicadores sobre algumas chamadas a funções que não estão definidas no código analisado nem diretamente incluídas, pelo que não são suportadas. Não obstante este facto, o ***KLEE*** gerou 139742 testes, divididos em 28717 caminhos completamente executados e 111025 caminhos apenas parcialmente executados, aos quais correspondem 6369599 instruções. Contudo, nenhum destes ramos levou a um *buffer overflow*.
+
+Esta incapacidade do ***KLEE*** em identificar o erro no programa pode ser comprovada através de uma análise dos testes gerados e armazenados no diretório `klee-last`. A título de exemplo, a imagem abaixo contém a execução de um dos testes.
+
+![KLEE](/Lab2/images/klee-4.png)
+
+Ora, neste teste em concreto o *input* gerado pelo ***KLEE*** foi `55..............................` que, não tendo o formato de um endereço IP válido, não alcança o ramo de execução que contém a vulnerabilidade de *buffer overflow*.
+
+De maneira a automatizar a pesquisa pelos testes gerados para compreender melhor a razão pela qual nenhum dos *outputs* `Valid IP` resultou num *buffer overflow* e na consequente *segmentation fault*, pode aproveitar-se a biblioteca `lkleeRuntest`, criando um ciclo que corre os primeiros 10000 testes, através do comando `for i in $(seq -w 0 9999); do KTEST_FILE=klee-last/test00$i.ktest ./a.out done`, como se mostra na imagem seguinte.
+
+![KLEE](/Lab2/images/klee-5.png)
+
+Fazendo `grep "Valid IP:"` deste *output*, mostram-se apenas os casos que resultaram num endereço IP válido - que são os únicos que podem originar uma *segmentation fault* -, obtém-se o resultado seguinte.
+
+![KLEE](/Lab2/images/klee-6.png)
+
+Deste modo, confirma-se a razão pela qual o ***KLEE*** não detetou o erro de memória do programa: todos os *inputs* gerados com formato de um endereço IP válido não têm tamanho suficiente para exceder o *buffer* alocado para o seu armazenamento, de maneira que nunca acontece um caso de *buffer overflow*. Isto deve-se ao facto de o ***KLEE*** ir progressivamente aumentando o tamanho do valor gerado para a variável simbólica, mas ser necessário um tamanho superior a 16 *bytes* que, tendo em conta o número de combinações/permutações possíveis para a ordem dos caracteres em *inputs* de tamanhos menores, não é atingido/gerado em tempo útil.
 
 #### Conclusão
 
-Deste modo, o ***KLEE*** não conseguiu detetar a vulnerabilidade existente no programa. A incapacidade em detetar esta vulnerabilidade reside no facto de o ***KLEE*** ser uma ferramenta de execução simbólica, projetada para testar múltiplos ramos/caminhos de execução, mas esta vulnerabilidade ocorrer apenas perante um *input* com um formato extremamente específico, dadas as restrições subjacentes à verificação do endereço IP. Como tal, por mais valores que a variável simbólica possa assumir, é improvável que algum deles seja um endereço IP válido e com tamanho superior ao da memória alocada, pelo que esta ferramenta se mostra incapaz de cumprir o efeito pretendido, a não ser que gere *inputs* seguindo determinadas regras gramaticais, como no caso anterior.
+Em suma, o ***KLEE*** não conseguiu detetar a vulnerabilidade existente no programa. A incapacidade em detetar esta vulnerabilidade reside no facto de o ***KLEE*** ser uma ferramenta de execução simbólica, projetada para testar múltiplos ramos/caminhos de execução, mas esta vulnerabilidade ocorrer apenas perante um *input* com um formato extremamente específico, dadas as restrições subjacentes à verificação do endereço IP. Como tal, por mais valores que a variável simbólica possa assumir, é improvável que algum deles seja um endereço IP válido e com tamanho superior ao da memória alocada, pelo que esta ferramenta se mostra incapaz de cumprir o efeito pretendido, a não ser que gere *inputs* seguindo determinadas regras gramaticais, como no caso anterior.
 
 O código do programa original teve de ser ligeiramente modificado para converter a variável de *input* numa variável simbólica, de maneira a aproveitar as potencialidades do ***KLEE*** para instanciar diferentes valores concretos nesta variável, percorrendo os diversos caminhos de execução possíveis. Para esse efeito, utilizou-se a função `klee_make_symbolic()`. Todavia, nenhum dos valores assumidos pela variável foi capaz de *crashar* o programa e causar uma *segmentation fault*, deixando a vulnerabilidade de *buffer overflow* por detetar.
 
 ## Ferramentas de *Fuzzing Grey-Box*
 
+
+
 ### AFL
+
+
 
 ## Análise Global
 
