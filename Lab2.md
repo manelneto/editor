@@ -39,14 +39,14 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-O programa tem como objetivo validar se o *input* do utilizador tem o formato de um endereço IP válido, ou seja, se é uma *string* do tipo `A.B.C.D`, em que `A`, `B`, `C` e `D` são números naturais. Para o efeito, a função `check_ip()` verifica se o *input* contém apenas dígitos e exatamente três `.`, retornando `1` se e só nesse caso. Caso contrário - por exemplo, se o *input* contiver um número de `.` diferente de 3 ou se contiver caracteres que não sejam dígitos nem `.` -, então a função retorna `0`. Note-se que a função não verifica se o endereço IP é um valor válido (entre `0.0.0.0` e `255.255.255.255`), mas apenas se tem o formato esperado.
+O programa tem como objetivo validar se o *input* do utilizador tem o formato de um endereço IP válido, ou seja, se é uma *string* do tipo `A.B.C.D`, em que `A`, `B`, `C` e `D` são números naturais. Para o efeito, a função `check_ip()` verifica se o *input* contém apenas dígitos e exatamente três `.`, retornando `1` se e só se nesse caso. Caso contrário - por exemplo, se o *input* contiver um número de `.` diferente de 3 ou se contiver caracteres que não sejam dígitos nem `.` -, então a função retorna `0`. Note-se que a função não verifica se o endereço IP é um valor válido (entre `0.0.0.0` e `255.255.255.255`), mas apenas se tem o formato esperado.
 
 Assim sendo, `8.8.8.8`, `127.0.0.1` e `255.255.255.255` são considerados endereços IP com o formato correto, mas `999.999.999.999` também o é, embora não seja um endereço IP válido. Os *outputs* para estes *inputs* observam-se na imagem abaixo.
 
 ![Exemplos de Execução Benignos](/Lab2/images/benign-examples.png)
 
 Este código apresenta uma vulnerabilidade de *buffer overflow*, visto que se o *input* do utilizador - fornecido como primeiro argumento do programa (`argv[1]`) - tiver o formato de um endereço IP válido, ou seja, a função `check_ip()` retornar `1`, então esse valor é copiado pela função `strcpy()` para o *array* `str` de tamanho fixo 16, não se verificando se o tamanho do *input* é menor do que o tamanho do *array*, portanto, permitindo que os limites da memória alocada para o *array* `str` sejam ultrapassados.
-Como tal, um atacante pode inserir um *input* com um formato de um endereço IP válido, mas com comprimento superior a 16 *bytes*, de maneira a escrever indevidamente por cima de memória pertencente à *stack*, realizando um ataque de *buffer overflow* na *stack*.
+Como tal, um atacante pode inserir um *input* com o formato de um endereço IP válido, mas com comprimento superior a 16 *bytes*, de maneira a escrever indevidamente por cima de memória pertencente à *stack*, realizando um ataque de *buffer overflow* na *stack*.
 
 Efetivamente, as execuções seguintes demonstram a ocorrência de *segmentation faults* quando o *input* fornecido ao programa cumpre o formato de um endereço IP válido e é suficientemente maior do que o tamanho do *buffer* ao ponto de escrever por cima de zonas de memórias não alocadas ao processo em execução. Por exemplo, os *inputs* `1234567.1234567.1234567.1234567`, `0.0.0.01234567890123456789` e `ech` evidenciam esta vulnerabilidade.
 
@@ -121,7 +121,7 @@ Em segundo lugar, testou-se a expressão regular `(([0-9])* ".")*`. Esta express
 
 Desta vez, na 64ª iteração, a expressão regular originou um valor com o formato de um endereço IP válido, mas tamanho superior à memória alocada, o que causou um *buffer overflow*, portanto, uma *segmentation fault*. Este comportamento foi devidamente capturado pelo *script*, como se evidencia na segunda captura de ecrã acima exposta.
 
-Por último, foi fornecida ao *script* a expressão regular `[0-9]+ "." [0-9]+ "." [0-9]+ "." [0-9]+`, que é a forma correta de gerar endereços IP, respeitando o seu formato, tendo resultado no seguinte *output* do programa.
+Por último, foi fornecida ao *script* a expressão regular `[0-9]+ "." [0-9]+ "." [0-9]+ "." [0-9]+`, que é a forma correta de gerar endereços IP, respeitando o seu formato, o que resultou no seguinte *output* do programa.
 
 ![Blab](/Lab2/images/blab-4.png)
 ![Blab](/Lab2/images/blab-5.png)
@@ -178,7 +178,7 @@ int main() {
 }
 ```
 
-Em particular, é necessário incluir a biblioteca `klee.h` e, na função `main()`, substituir a utilização da variável `argv[1]` por uma nova variável `char input[32]`. Esta variável `input` é - através da chamada à função `klee_make_symbolic()` - definida como a variável simbólica do programa, de maneira a assumir vários valores possíveis em diferentes ramos de execução criados pelo ***KLEE***. Deste modo, pretende-se testar o comportamento do programa perante diferentes valores da variável `input`, na expectativa de que algum deles passe na verificação da função `check_ip()` e tenha tamanho suficiente para causar um *buffer overflow* e a consequente *segmentation fault*. Para isso, define-se o tamanho de `input` (32) para o dobro do tamanho da variável `buffer` (16).
+Em particular, é necessário incluir a biblioteca `klee.h` e, na função `main()`, substituir a utilização da variável `argv[1]` por uma nova variável `char input[32]`. Esta variável `input` é - através da chamada à função `klee_make_symbolic()` - definida como a variável simbólica do programa, de maneira a assumir vários valores possíveis em diferentes ramos de execução criados pelo ***KLEE***. Deste modo, pretende-se testar o comportamento do programa perante diferentes valores da variável `input`, na expectativa de que algum deles passe na verificação da função `check_ip()` e tenha tamanho suficiente para causar um *buffer overflow*, com a consequente *segmentation fault*. Para isso, define-se o tamanho de `input` (32) para o dobro do tamanho da variável `buffer` (16).
 
 A compilação e execução deste código ligeiramente modificado com o ***KLEE*** apresenta-se na imagem abaixo.
 
@@ -186,27 +186,28 @@ A compilação e execução deste código ligeiramente modificado com o ***KLEE*
 ![KLEE](/Lab2/images/klee-2.png)
 ![KLEE](/Lab2/images/klee-3.png)
 
-O comando de compilação `clang -I /home/klee/klee_src/include/ -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone ip-klee.c` chama o compilador `clang` para compilar o ficheiro `ip-klee.c`. A *flag* `-I` adiciona o diretório `/home/klee/klee_src/include/` aos caminhos nos quais procurar *headers*, para encontrar a biblioteca incluída `klee.h`. De seguida, a *flag* `-emit-llvm` faz com que o código gerado não seja binário, mas sim uma representação intermédia em LLVM, produzindo um ficheiro com a extensão `.bc`. A *flag* `-c` evita que o compilador faça *link* do programa, `-g` inclui informações de *debug* que são úteis para ferramentas de execução simbólica e `-O0` desativa otimizações de compilação, de maneira a não reorganizar o código, preservando as suas propriedades para ser analisado pelo ***KLEE***. Finalmente, `-Xclang` passa os argumentos diretamente ao *frontend* do compilador e `-disable-O0-optnone` impede a adição automática do atributo `optnone` às funções, ao utilizar `-O0`. O comando `klee --libc=uclibc ip-klee.bc` executa a ferramenta ***KLEE*** contra o programa `ip-klee.bc`, substituindo as funções da biblioteca `libc` por uma implementação compilada de forma simbólica (`uclibc`).
+O comando de compilação `clang -I /home/klee/klee_src/include/ -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone ip-klee.c` chama o compilador `clang` para compilar o ficheiro `ip-klee.c`. A *flag* `-I` adiciona o diretório `/home/klee/klee_src/include/` aos caminhos nos quais procurar *headers*, para encontrar a biblioteca incluída `klee.h`. De seguida, a *flag* `-emit-llvm` faz com que o código gerado não seja binário, mas sim uma representação intermédia em LLVM, produzindo um ficheiro com a extensão `.bc`. A *flag* `-c` evita que o compilador faça *link* do programa, `-g` inclui informações de *debug* que são úteis para ferramentas de execução simbólica e `-O0` desativa otimizações de compilação, de maneira a não reorganizar o código, preservando as suas propriedades para ser analisado pelo ***KLEE***. Finalmente, `-Xclang` passa os argumentos diretamente ao *frontend* do compilador e `-disable-O0-optnone` impede a adição automática do atributo `optnone` às funções, quando utilizado `-O0`, como é o caso. O comando `klee --libc=uclibc ip-klee.bc` executa a ferramenta ***KLEE*** contra o programa `ip-klee.bc`, substituindo as funções da biblioteca `libc` por uma implementação compilada de forma simbólica (`uclibc`).
 
 Como se evidencia pelas imagens acima, o ***KLEE*** não conseguiu detetar a falha de segurança presente no código, uma vez que nenhum fluxo de execução seguido originou um *buffer overflow*. Isto sucedeu porque, apesar de a variável simbólica `input` tomar alguns valores correspondentes a endereços IP válidos em formato, nenhum desses casos teve tamanho suficiente para escrever por cima de memória não alocada. Deste modo, nenhuma das execuções do programa originou uma *segmentation fault*.
 
 Note-se que os avisos lançados pelo ***KLEE*** no início da execução do programa não são impeditivos do seu correto funcionamento, mas meros indicadores sobre algumas chamadas a funções que não estão definidas no código analisado nem diretamente incluídas, pelo que não são suportadas. Não obstante este facto, o ***KLEE*** gerou 139742 testes, divididos em 28717 caminhos completamente executados e 111025 caminhos apenas parcialmente executados, aos quais correspondem 6369599 instruções. Contudo, nenhum destes ramos levou a um *buffer overflow*.
 
-Esta incapacidade do ***KLEE*** em identificar o erro no programa pode ser comprovada através de uma análise dos testes gerados e armazenados no diretório `klee-last`. A título de exemplo, a imagem abaixo contém a execução de um dos testes.
+Esta incapacidade do ***KLEE*** em identificar o erro no programa pode ser comprovada ao analisar os testes gerados e armazenados no diretório `klee-last`. A título de exemplo, a imagem abaixo contém a execução de um dos testes.
 
 ![KLEE](/Lab2/images/klee-4.png)
 
-Ora, neste teste em concreto o *input* gerado pelo ***KLEE*** foi `55..............................` que, não tendo o formato de um endereço IP válido, não alcança o ramo de execução que contém a vulnerabilidade de *buffer overflow*.
+Ora, neste teste em concreto, o *input* gerado pelo ***KLEE*** foi `55..............................` que, não tendo o formato de um endereço IP válido, não alcança o ramo de execução que contém a vulnerabilidade de *buffer overflow*.
 
 De maneira a automatizar a pesquisa pelos testes gerados para compreender melhor a razão pela qual nenhum dos *outputs* `Valid IP` resultou num *buffer overflow* e na consequente *segmentation fault*, pode aproveitar-se a biblioteca `lkleeRuntest`, criando um ciclo que corre os primeiros 10000 testes, através do comando `for i in $(seq -w 0 9999); do KTEST_FILE=klee-last/test00$i.ktest ./a.out done`, como se mostra na imagem seguinte.
 
 ![KLEE](/Lab2/images/klee-5.png)
 
-Fazendo `grep "Valid IP:"` deste *output*, mostram-se apenas os casos que resultaram num endereço IP válido - que são os únicos que podem originar uma *segmentation fault* -, obtém-se o resultado seguinte.
+Fazendo `grep "Valid IP:"` deste *output*, mostram-se apenas os casos que resultaram num endereço IP válido - que são os únicos que podem originar uma *segmentation fault* -, obtendo-se o resultado seguinte.
 
 ![KLEE](/Lab2/images/klee-6.png)
+![KLEE](/Lab2/images/klee-7.png)
 
-Deste modo, confirma-se a razão pela qual o ***KLEE*** não detetou o erro de memória do programa: todos os *inputs* gerados com formato de um endereço IP válido não têm tamanho suficiente para exceder o *buffer* alocado para o seu armazenamento, de maneira que nunca acontece um caso de *buffer overflow*. Isto deve-se ao facto de o ***KLEE*** ir progressivamente aumentando o tamanho do valor gerado para a variável simbólica, mas ser necessário um tamanho superior a 16 *bytes* que, tendo em conta o número de combinações/permutações possíveis para a ordem dos caracteres em *inputs* de tamanhos menores, não é atingido/gerado em tempo útil.
+Deste modo, confirma-se a razão pela qual o ***KLEE*** não detetou o erro de memória do programa: todos os *inputs* gerados com o formato de um endereço IP válido não têm tamanho suficiente para exceder o *buffer* alocado para o seu armazenamento, de modo que nunca acontece um caso de *buffer overflow*. Isto deve-se ao facto de o ***KLEE*** ir progressivamente aumentando o tamanho do valor gerado para a variável simbólica, mas ser necessário um tamanho superior a 16 *bytes* que, tendo em conta o número de combinações/permutações possíveis para a ordem dos caracteres em *inputs* de tamanhos menores, não é atingido/gerado em tempo útil.
 
 #### Conclusão
 
@@ -257,7 +258,7 @@ int main() {
 
 A única modificação necessária consiste em receber o *input* do programa via `stdin` em vez de via linha de comandos (`argv[1]`), visto que o ***AFL*** injeta os dados de teste através do *standard input* e não como argumentos.
 
-Para executar o ***AFL*** é ainda necessário definir pelo menos um caso de teste inicial, a partir do qual serão gerados automaticamente novos casos de teste, através de mutações. Nesse sentido, foi criado o ficheiro `ip.txt` com um endereço IP válido, como se demonstra abaixo.
+Para executar o ***AFL***, é ainda necessário definir pelo menos um caso de teste inicial, a partir do qual serão gerados automaticamente novos casos de teste, através de mutações. Nesse sentido, foi criado o ficheiro `ip.txt` com um endereço IP válido, como se demonstra abaixo.
 
 ![AFL](/Lab2/images/afl-1.png)
 
@@ -270,7 +271,7 @@ Efetivamente, a execução do ***AFL*** mostra que a ferramenta foi capaz de ide
 
 ![AFL](/Lab2/images/afl-4.png)
 
-Ora, o ficheiro guardado mostra que o *input* que *crashou* o programa foi `1.2.3.44444444444444444444444444444`, o que, efetivamente, tem um formato de endereço IP válido, mas tamanho superior à memória alocada para o *buffer*, pelo originou um *segmentation fault*. Deste modo, ao estender o *input* original válido `1.2.3.4`, o ***AFL*** foi capaz de gerar um teste que demonstrou a vulnerabilidade de *buffer overflow* do programa.
+Ora, o ficheiro guardado mostra que o *input* que *crashou* o programa foi `1.2.3.44444444444444444444444444444`, o que, efetivamente, tem o formato de um endereço IP válido, mas tamanho superior à memória alocada para o *buffer*, pelo que originou uma *segmentation fault*. Deste modo, ao estender o *input* original válido `1.2.3.4`, o ***AFL*** foi capaz de gerar um teste que demonstrou a vulnerabilidade de *buffer overflow* do programa.
 
 Note-se que o nome do ficheiro `id:000000,sig:06,src:000000,time:188,execs:1076,op:havoc,rep:1` traduz algumas informações relevantes sobre o mesmo, nomeadamente:
 
@@ -282,9 +283,9 @@ Note-se que o nome do ficheiro `id:000000,sig:06,src:000000,time:188,execs:1076,
 - `op:havoc`, que demonstra que a mutação que levou ao *crash* foi realizada com a operação *havoc*, que consiste numa pesquisa aleatória intensa;
 - `rep:1`, que evidencia que apenas um *input* causou este *crash*.
 
-### Conclusão
+#### Conclusão
 
-Assim sendo, o ***AFL*** conseguiu detetar a vulnerabilidade de *buffer overflow* no código. Isto deve-se ao facto de o ***AFL*** ter sido capaz de fazer alterações/mutações ao *input* original, nomeadamente estendendo-o, de maneira a exceder a memória alocada para a variável que o armazena, causando uma consequente *segmentation fault*. Deste modo, ao receber um *input* válido para o programa em causa, a ferramenta de *fuzzing grey-box* realizou mutações sobre a mesma, seguindo diversas técnicas distintas, em particular *havoc*, até resultar num *crash* da execução do programa.
+Assim sendo, o ***AFL*** conseguiu detetar a vulnerabilidade de *buffer overflow* no código. Isto deve-se ao facto de o ***AFL*** ter sido capaz de fazer alterações/mutações ao *input* original, nomeadamente estendendo-o, de maneira a exceder a memória alocada para a variável que o armazena, causando uma consequente *segmentation fault*. Deste modo, ao receber um *input* válido para o programa em causa, a ferramenta de *fuzzing grey-box* realizou mutações sobre a mesma seguindo diversas técnicas distintas, em particular *havoc*, até resultar num *crash* da execução do programa.
 
 Para executar o ***AFL***, foi necessário fazer uma mínima alteração no código original, relativamente à forma como o *input* era enviado para o programa, bem como definir um caso de teste inicial, a partir do qual são geradas as mutações. Ora, como foi facilmente comprovável, este teste inicial não tem de ser sofisticado nem próximo dos casos que geram *segmentation faults*, visto que o ***AFL*** é capaz de o mutar devidamente até alcançar resultados satisfatórios, ou seja, *crashes*. A execução do ***AFL*** é extremamente simples, tendo em conta que só é necessário compilar o programa de forma a prepará-lo para a instrumentalização e, posteriormente, correr a ferramenta de *fuzzing grey-box* que, neste caso, detetou a vulnerabilidade de *buffer overflow*.
 
@@ -299,8 +300,8 @@ Em suma, apresentam-se os resultados obtidos por todas as ferramentas de teste u
 | **Execução Simbólica**  |   ***KLEE***   |      NÃO      |
 | ***Fuzzing Grey-Box***  |   ***AFL***    |      SIM      |
 
-No caso deste programa em particular, ambas as abordagens de *fuzzing* - tanto *black-box* (***Blab***) como *grey-box* (***AFL***) - foram capazes de detetar a vulnerabilidade existente, enquanto a ferramenta de execução simbólica (***KLEE***) não foi capaz de o fazer. No entanto, este facto não é, evidentemente, diretamente generalizável para todos os casos, apesar de existirem diferenças significativas entre ambas as abordagens.
+No caso deste programa em particular, ambas as abordagens de *fuzzing* - tanto *black-box* (***Blab***), quanto *grey-box* (***AFL***) - foram capazes de detetar a vulnerabilidade existente, enquanto a ferramenta de execução simbólica (***KLEE***) não foi capaz de o fazer. No entanto, este facto não é, evidentemente, diretamente generalizável para todos os casos, apesar de existirem diferenças significativas entre ambas as abordagens.
 
-Assim sendo, conclui-se que existem *tradeoffs* entre *fuzzing* e execução simbólica. Por um lado, o *fuzzing* gera *inputs* de forma mais fácil e eficiente, com menor custo computacional e exigindo poucas ou nenhumas alterações ao código, mas tem maior dificuldade em cobrir os diferentes caminhos de execução possíveis, a não ser que lhe seja fornecida alguma informação sobre o código a testar, seja uma gramática (como no caso do ***Radamsa***), seja um *input* inicial (para o ***AFL***). Por outro lado, a execução simbólica é capaz de ter uma maior cobertura do código mais facilmente, mas com um custo computacional mais elevado - subjacente ao cálculo dos diversos caminhos possíveis - e com a necessidade de realizar mais alterações ao código original, tornando-o o simbólico.
+Assim sendo, conclui-se que existem *tradeoffs* entre *fuzzing* e execução simbólica. Por um lado, o *fuzzing* gera *inputs* de forma mais fácil e eficiente, com menor custo computacional e exigindo poucas ou nenhumas alterações ao código, mas tem maior dificuldade em cobrir os diferentes caminhos de execução possíveis, a não ser que lhe seja fornecida alguma informação sobre o código a testar, seja uma gramática (como no caso do ***Radamsa***), seja um *input* inicial (para o ***AFL***). Por outro lado, a execução simbólica é capaz de ter uma maior cobertura do código mais facilmente, mas com um custo computacional mais elevado - subjacente ao cálculo dos diversos caminhos possíveis - e com a necessidade de realizar mais alterações ao código original, tornando-o simbólico.
 
-Portanto, o melhor das duas alternativas parece surgir no espaço intermédio entre ambas, com a utilização de *fuzzing grey-box*. Esta solução, em particular através do ***AFL***, permite seguir uma abordagem de *fuzzing* a partir de um *input* inicial, mas com a capacidade de explorar as diferentes execuções possíveis do programa de forma inteligente, através da utilização de heurísticas internas e de diferentes métodos/abordagens para a geração de novos casos de teste, explorados conforme o seu interesse. Assim, o *fuzzing grey-box* concilia a eficiência e simplicidade do *fuzzing black-box* com a capacidade de explorar diversos caminhos/fluxos de execução da execução simbólica, tornando-se uma solução particularmente interesse para testes no contexto de segurança.
+Portanto, o melhor das duas alternativas parece surgir no espaço intermédio entre ambas, com a utilização de *fuzzing grey-box*. Esta solução, em particular através do ***AFL***, permite seguir uma abordagem de *fuzzing* a partir de um *input* inicial, mas com a capacidade de explorar as diferentes execuções possíveis do programa de forma inteligente, através da utilização de heurísticas internas e de diferentes métodos/abordagens para a geração de novos casos de teste, explorados conforme o seu interesse. Assim, o *fuzzing grey-box* concilia a eficiência e simplicidade do *fuzzing black-box* com a capacidade de explorar diversos caminhos/ramos do programa da execução simbólica, tornando-se uma solução particularmente interessante para testes no contexto de segurança.
