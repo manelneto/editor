@@ -48,7 +48,7 @@ Assim sendo, `8.8.8.8`, `127.0.0.1` e `255.255.255.255` são considerados endere
 Este código apresenta uma vulnerabilidade de *buffer overflow*, visto que se o *input* do utilizador - fornecido como primeiro argumento do programa (`argv[1]`) - tiver o formato de um endereço IP válido, ou seja, a função `check_ip()` retornar `1`, então esse valor é copiado pela função `strcpy()` para o *array* `str` de tamanho fixo 16, não se verificando se o tamanho do *input* é menor do que o tamanho do *array*, portanto, permitindo que os limites da memória alocada para o *array* `str` sejam ultrapassados.
 Como tal, um atacante pode inserir um *input* com um formato de um endereço IP válido, mas com comprimento superior a 16 *bytes*, de maneira a escrever indevidamente por cima de memória pertencente à *stack*, realizando um ataque de *buffer overflow* na *stack*.
 
-Efetivamente, as execuções seguintes demonstram a ocorrência de *segmentation faults* quando o *input* fornecido ao programa cumpre o formato de um endereço IP válido e é suficientemente maior do que o tamanho do *buffer* ao ponto de escrever por cima de zonas de memórias não alocadas ao processo em execução. Por exemplo, os *inputs* `1234567.1234567.1234567.1234567`, `0.0.0.01234567890123456789` e `888888.888888.888888.888888` evidenciam esta vulnerabilidade.
+Efetivamente, as execuções seguintes demonstram a ocorrência de *segmentation faults* quando o *input* fornecido ao programa cumpre o formato de um endereço IP válido e é suficientemente maior do que o tamanho do *buffer* ao ponto de escrever por cima de zonas de memórias não alocadas ao processo em execução. Por exemplo, os *inputs* `1234567.1234567.1234567.1234567`, `0.0.0.01234567890123456789` e `ech` evidenciam esta vulnerabilidade.
 
 ![Exemplos de Execução Maliciosos](/Lab2/images/malign-examples.png)
 
@@ -216,11 +216,77 @@ O código do programa original teve de ser ligeiramente modificado para converte
 
 ## Ferramentas de *Fuzzing Grey-Box*
 
-
+As ferramentas de *fuzzing grey-box* são, tal como o nome indica, um misto entre as ferramentas de *fuzzing black-box* e as ferramentas de execução simbólica. Ou seja, estas ferramentas geram automaticamente *inputs* a fornecer ao programa a testar, mas com algum conhecimento interno para tentar maximizar o seu desempenho.
 
 ### AFL
 
+O ***American Fuzzy Loop (AFL)*** é uma ferramenta de *fuzzing grey-box* que toma em consideração a cobertura do código atingida pelos *inputs* de teste de maneira a tomar decisões informadas sobre quais os *inputs* que devem sofrer mutações para, com maior probabilidade, maximizar a cobertura do código. Assim, o ***AFL*** consegue tirar proveito das capacidades de execução simbólica e de *fuzzing black-box*.
 
+Para analisar o programa em causa com o ***AFL***, o código do ficheiro `ip.c` tem de ser ligeiramente modificado, resultando no excerto abaixo.
+
+```c
+#define MAX_SIZE 16
+
+int check_ip(const char *ip) {
+    int dots = 0;
+    for (int i = 0; ip[i]; i++) {
+        if (ip[i] == '.')
+            dots++;
+        else if (!isdigit(ip[i]))
+            return 0;
+    }
+    return dots == 3;
+}
+
+int main() {
+    char buffer[MAX_SIZE] = {0};
+    char input[32] = {0};
+
+    fread(input, 1, sizeof(input) - 1, stdin);
+
+    if (check_ip(input)) {
+        strcpy(buffer, input);                          /* FLAW */
+        printf("Valid IP: %s\n", buffer);
+    } else {
+        printf("Invalid IP\n");
+    }
+
+    return 0;
+}
+```
+
+A única modificação necessária consiste em receber o *input* do programa via `stdin` em vez de via linha de comandos (`argv[1]`), visto que o ***AFL*** injeta os dados de teste através do *standard input* e não como argumentos.
+
+Para executar o ***AFL*** é ainda necessário definir pelo menos um caso de teste inicial, a partir do qual serão gerados automaticamente novos casos de teste, através de mutações. Nesse sentido, foi criado o ficheiro `ip.txt` com um endereço IP válido, como se demonstra abaixo.
+
+![AFL](/Lab2/images/afl-1.png)
+
+Após isto, foi compilado o programa para o ***AFL*** com o comando `AFL_HARDEN=1 afl-clang-fast ip-afl.c -o ip-afl` e, posteriormente, foi lançado o ***AFL***, ao executar `afl-fuzz -i inputs -o out ./ip-afl`. A imagem abaixo mostra os resultados da execução.
+
+![AFL](/Lab2/images/afl-2.png)
+![AFL](/Lab2/images/afl-3.png)
+
+Efetivamente, a execução do ***AFL*** mostra que a ferramenta foi capaz de identificar 4430 *inputs* que *crasharam* o programa, dos quais guardou um. Este *crash* foi encontrado ao realizar mutações sobre o *input* original fornecido para teste, sendo que o caso de teste em concreto que gerou a *crash* armazenada pode ser consultado em `out/default/crashes`, o que se realiza na imagem seguinte.
+
+![AFL](/Lab2/images/afl-4.png)
+
+Ora, o ficheiro guardado mostra que o *input* que *crashou* o programa foi `1.2.3.44444444444444444444444444444`, o que, efetivamente, tem um formato de endereço IP válido, mas tamanho superior à memória alocada para o *buffer*, pelo originou um *segmentation fault*. Deste modo, ao estender o *input* original válido `1.2.3.4`, o ***AFL*** foi capaz de gerar um teste que demonstrou a vulnerabilidade de *buffer overflow* do programa.
+
+Note-se que o nome do ficheiro `id:000000,sig:06,src:000000,time:188,execs:1076,op:havoc,rep:1` traduz algumas informações relevantes sobre o mesmo, nomeadamente:
+
+- `id:000000`, que significa que este *crash* é o primeiro encontrado;
+- `sig:06`, que indica que o processo terminou a execução com o sinal 6 (`SIGABRT`);
+- `src:000000`, que mostra que este caso foi gerado a partir do primeiro (e único) *input*;
+- `time:188`, que representa o tempo, em segundos, decorrido até ao *crash*;
+- `execs:1076`, que corresponde ao número total de execuções diferentes até ao *crash*;
+- `op:havoc`, que demonstra que a mutação que levou ao *crash* foi realizada com a operação *havoc*, que consiste numa pesquisa aleatória intensa;
+- `rep:1`, que evidencia que apenas um *input* causou este *crash*.
+
+### Conclusão
+
+Assim sendo, o ***AFL*** conseguiu detetar a vulnerabilidade de *buffer overflow* no código. Isto deve-se ao facto de o ***AFL*** ter sido capaz de fazer alterações/mutações ao *input* original, nomeadamente estendendo-o, de maneira a exceder a memória alocada para a variável que o armazena, causando uma consequente *segmentation fault*. Deste modo, ao receber um *input* válido para o programa em causa, a ferramenta de *fuzzing grey-box* realizou mutações sobre a mesma, seguindo diversas técnicas distintas, em particular *havoc*, até resultar num *crash* da execução do programa.
+
+Para executar o ***AFL***, foi necessário fazer uma mínima alteração no código original, relativamente à forma como o *input* era enviado para o programa, bem como definir um caso de teste inicial, a partir do qual são geradas as mutações. Ora, como foi facilmente comprovável, este teste inicial não tem de ser sofisticado nem próximo dos casos que geram *segmentation faults*, visto que o ***AFL*** é capaz de o mutar devidamente até alcançar resultados satisfatórios, ou seja, *crashes*. A execução do ***AFL*** é extremamente simples, tendo em conta que só é necessário compilar o programa de forma a prepará-lo para a instrumentalização e, posteriormente, correr a ferramenta de *fuzzing grey-box* que, neste caso, detetou a vulnerabilidade de *buffer overflow*.
 
 ## Análise Global
 
@@ -231,6 +297,10 @@ Em suma, apresentam-se os resultados obtidos por todas as ferramentas de teste u
 | ***Fuzzing Black-Box*** | ***Radamsa***  |      N/A      |
 | ***Fuzzing Black-Box*** |   ***Blab***   |      SIM      |
 | **Execução Simbólica**  |   ***KLEE***   |      NÃO      |
-| ***Fuzzing Grey-Box***  |   ***AFL***    |       ?       |
+| ***Fuzzing Grey-Box***  |   ***AFL***    |      SIM      |
 
-Assim sendo, conclui-se que existem *tradeoffs* entre *fuzzing* e execução simbólica. TODO
+No caso deste programa em particular, ambas as abordagens de *fuzzing* - tanto *black-box* (***Blab***) como *grey-box* (***AFL***) - foram capazes de detetar a vulnerabilidade existente, enquanto a ferramenta de execução simbólica (***KLEE***) não foi capaz de o fazer. No entanto, este facto não é, evidentemente, diretamente generalizável para todos os casos, apesar de existirem diferenças significativas entre ambas as abordagens.
+
+Assim sendo, conclui-se que existem *tradeoffs* entre *fuzzing* e execução simbólica. Por um lado, o *fuzzing* gera *inputs* de forma mais fácil e eficiente, com menor custo computacional e exigindo poucas ou nenhumas alterações ao código, mas tem maior dificuldade em cobrir os diferentes caminhos de execução possíveis, a não ser que lhe seja fornecida alguma informação sobre o código a testar, seja uma gramática (como no caso do ***Radamsa***), seja um *input* inicial (para o ***AFL***). Por outro lado, a execução simbólica é capaz de ter uma maior cobertura do código mais facilmente, mas com um custo computacional mais elevado - subjacente ao cálculo dos diversos caminhos possíveis - e com a necessidade de realizar mais alterações ao código original, tornando-o o simbólico.
+
+Portanto, o melhor das duas alternativas parece surgir no espaço intermédio entre ambas, com a utilização de *fuzzing grey-box*. Esta solução, em particular através do ***AFL***, permite seguir uma abordagem de *fuzzing* a partir de um *input* inicial, mas com a capacidade de explorar as diferentes execuções possíveis do programa de forma inteligente, através da utilização de heurísticas internas e de diferentes métodos/abordagens para a geração de novos casos de teste, explorados conforme o seu interesse. Assim, o *fuzzing grey-box* concilia a eficiência e simplicidade do *fuzzing black-box* com a capacidade de explorar diversos caminhos/fluxos de execução da execução simbólica, tornando-se uma solução particularmente interesse para testes no contexto de segurança.
