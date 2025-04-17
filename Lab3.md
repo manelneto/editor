@@ -75,17 +75,21 @@ Uma alternativa que solucionaria esta vulnerabilidade seria fazer *bind* aos par
 
 O analisador estático automatizado ***SonarCloud*** deteta corretamente esta vulnerabilidade, identificando a linha de código em questão.
 
-![SonarCloud](/Lab3/images/sonarcloud-1.png)
+![SonarCloud](/Lab3/images/sonarcloud-1-1.png)
 
 Efetivamente, o ***SonarCloud*** sugere a alteração do código para não construir a *query* SQL diretamente a partir de dados controlados pelo utilizador, sem a validação adequada.
 
 O ***SonarCloud*** é capaz de detetar esta vulnerabilidade porque, internamente, realiza *taint analysis*, identificando como fonte o pedido HTTP proveniente do utilizador e como destino a invocação à base de dados, tal como sugere a imagem abaixo.
 
-![SonarCloud](/Lab3/images/sonarcloud-2.png)
+![SonarCloud](/Lab3/images/sonarcloud-1-2.png)
 
 Como não existe qualquer sanitização do *input* do utilizador desde a origem até ao destino, o ***SonarCloud*** identifica esta linha de codigo como uma potencial vulnerabilidade.
 
-TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+Após corrigir o código e executar novamente a análise do ***SonarCloud***, o analisador já não reporta a vulnerabilidade anteriormente existente, considerando-a resolvida, como se verifica na imagem abaixo.
+
+![SonarCloud](/Lab3/images/sonarcloud-1-3.png)
+
+Isto sucede porque o novo código resolve o problema anterior ao fazer *bind* do *input* do utilizador à *query*, pelo que o ***SonarCloud*** passa a considerar a *query* SQL como segura, por não poder ser manipulada ou adulterada com base no *input* controlado pelo utilizador. Assim, deixa de existir uma vulnerabilidade nesta linha de código.
 
 ### Database Schema
 
@@ -152,17 +156,21 @@ Deste modo, uma possibilidade que resolveria esta vulnerabilidade consiste em ut
 
 O ***SonarCloud*** - enquanto analisador estático automatizado - identifica corretamente esta vulnerabilidade, na linha de código correspondente.
 
-![SonarCloud](/Lab3/images/sonarcloud-3.png)
+![SonarCloud](/Lab3/images/sonarcloud-2-1.png)
 
 Tal como anteriormente, o ***SonarCloud*** instrui o Engenheiro de *Software* a modificar o código no sentido de não construir a *query* SQL de forma direta a partir do *input* controlado pelo utilizador, sugerindo que os dados sejam validados e sanitizados previamente.
 
 Igualmente, esta deteção do ***SonarCloud*** provém da sua capacidade de realizar *taint analysis*, através da qual o pedido HTTP efetuado pelo utilizador é considerado a origem dos dados, sendo o destino a chamada à base de dados, como se verifica na seguinte imagem.
 
-![SonarCloud](/Lab3/images/sonarcloud-4.png)
+![SonarCloud](/Lab3/images/sonarcloud-2-2.png)
 
 Visto que o *input* do utilizador é passado desde a origem até ao destino sem ser ser submetido a qualquer processo de sanitização/validação, o ***SonarCloud*** destaca a falha de segurança presente no código.
 
-TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+Depois de alterar o código para seguir a recomendação sugerida, o ***SonarCloud*** deixa de reportar a vulnerabilidade que identificava previamente, pelo que considera o novo código seguro. Este facto observa-se na captura de ecrã seguinte.
+
+![SonarCloud](/Lab3/images/sonarcloud-2-3.png)
+
+Isto acontece porque, como o novo código prepara a *query* à base de dados e limita o âmbito que o *input* do utilizador pode afetar aos campos estritamente necessários, a *query* SQL passa a ser segura, visto que deixa de poder ser manipulada pelo utilizador. Assim sendo, o ***SonarCloud*** já não reporta a falha de segurança. 
 
 ### GDPR Data Erasure
 
@@ -444,7 +452,11 @@ ngAfterViewInit () {
 }
 ```
 
+Neste caso, não foi possível executar o ***SonarCloud***, visto que o código-fonte exposto após a conclusão do desafio não se encontra disponível no repositório associado à *Juice Shop*.
 
+No entanto, ao ser chamada a função `bypassSecurityTrustHtml()`, seria expectável que o ***SonarCloud***, enquanto ferramenta de análise estática, fosse capaz de identificar corretamente a vulnerabilidade. Este comportamento dever-se-ia ao facto de a função em causa contrariar as boas práticas de segurança, pelo que deveria constar de uma lista interna da ferramenta de funções que, quando utilizadas, devessem suscitar um alerta.
+
+Assim sendo, após a aplicação da respetiva correção, seria expectável que o ***SonarCloud*** deixasse de reportar a vulnerabilidade, visto que deixaria de existir uma chamada à função `bypassSecurityTrustHtml()`, o que já não levantaria qualquer alerta de segurança.
 
 ---
 
@@ -538,17 +550,21 @@ Desta forma, a porção de código `author: user.data.email` vai buscar a inform
 
 A ferramenta de análise estática automatizada ***SonarCloud*** não identifica concretamente esta vulnerabilidade de *Broken Access Control*, ainda que saliente outra falha, na mesma linha de código.
 
-![SonarCloud](/Lab3/images/sonarcloud-9.png)
+![SonarCloud](/Lab3/images/sonarcloud-5-1.png)
 
 Efetivamente, o ***SonarCloud*** assinala que, no excerto de código mostrado, a *query* à base de dados contém informação diretamente controlada pelo utilizador, pelo que deve ser alterada para ser validada/sanitizada. No entanto, a ferramenta não é capaz de encontrar esta falha de *Broken Access Control*, limitando-se à deteção da possível *SQL Injection*.
 
 Por um lado, o mecanismo interno de *taint analysis* do ***SonarCloud*** é responsável por detetar a falta de validação/sanitização adequada do *input*, proveniente do pedido HTTP do utilizador e destinado à base de dados, conforme se evidencia na imagem abaixo. Por outro lado, a incapacidade em detetar a vulnerabilidade de *Broken Access Control* deve-se ao facto de esta ferramenta não compreender a lógica que deve estar subjacente ao código em causa, pelo que as variáveis e os respetivos valores não têm qualquer significado semântico para a análise.
 
-![SonarCloud](/Lab3/images/sonarcloud-10.png)
+![SonarCloud](/Lab3/images/sonarcloud-5-2.png)
 
 Assim, o ***SonarCloud*** limita-se a detetar a vulnerabilidade de *SQL Injection*, mas deixa escapar a falha de *Broken Access Control*.
 
-TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+Ao modificar o código conforme explicitado, o ***SonarCloud*** continua com o mesmo comportamento, isto é, identifica a falta de validação do *input*, mas não o *Broken Access Control*, agora resolvido. Este comportamento demonstra-se na imagem abaixo.
+
+![SonarCloud](/Lab3/images/sonarcloud-5-3.png)
+
+Efetivamente, não seria de esperar outro comportamento, visto que a vulnerabilidade corrigida (*Broken Access Control*) já não era, quando existia, detetada pelo ***SonarCloud***, ao contrário da falha que possibilitava ataques de *SQL Injection*, mas que não foi endereçada. Deste modo, a ferramenta de análise estática só podia continuar a detetar este segundo caso, sendo agora a única vulnerabilidade existente na linha de código em causa.
 
 ---
 
