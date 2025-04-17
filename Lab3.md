@@ -23,7 +23,7 @@ A imagem abaixo mostra a conclusão bem-sucedida do desafio.
 
 ![Login Bender](/Lab3/images/login-bender.png)
 
-Note-se que deve ser evitada a abordagem mais comum de colocar `OR 1=1` neste ataque de *SQL Injection*, visto que essa *query* retornaria toda a tabela de utilizadores, iniciando a sessão do primeiro elemento/utilizador que, neste caso, é o `admin@juice-sh.op`, pelo que esta abordagem contrariaria o pretendido (`bender@juice-sh.op`).
+Note-se que deve ser evitada a abordagem mais comum de colocar `OR 1=1` neste ataque de *SQL Injection*, visto que essa *query* retornaria toda a tabela de utilizadores, iniciando a sessão do primeiro elemento/utilizador que, neste caso, é o `admin@juice-sh.op`, pelo que essa abordagem contrariaria o pretendido (`bender@juice-sh.op`).
 
 A vulnerabilidade que permitiu o ataque é a validação imprópria do *input*.
 
@@ -69,7 +69,7 @@ module.exports = function login () {
 }
 ```
 
-Na função `login()`, a linha ```models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true })``` permite a execução direta de uma *query* SQL, sem qualquer validação ou sanitização.
+Na função `login()`, a linha ```models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true })``` permite a execução direta de uma *query* SQL, sem qualquer validação ou sanitização do *input* do utilizador.
 
 Uma alternativa que solucionaria esta vulnerabilidade seria fazer *bind* aos parâmetros da *query*, modificando a linha de código para ```models.sequelize.query(`SELECT * FROM Users WHERE email = $mail AND password = $pass AND deletedAt IS NULL`, { bind: { mail: req.body.email, pass: security.hash(req.body.password) }, model: models.User, plain: true })```. Desta forma, a *query* tornar-se-ia equivalente a um *prepared statement*, evitando adulterações na sintaxe através da introdução de *inputs* maliciosos por parte do utilizador, sendo fixada/preparada antes de qualquer *input* lhe ser fornecido.
 
@@ -91,20 +91,20 @@ TODO: you may patch the code and rerun the analyses. would the analysers no long
 
 O desafio *Database Schema* passa por exfiltrar todo o esquema definido para a base dados através de *SQL Injection*. Este desafio é semelhante ao anterior, mas requer inferir alguma informação sobre a base de dados de maneira a atacar a página de pesquisa.
 
-Ao usar o *Burp Suite* para controlar os pedidos HTTP, verifica-se que as submissões na barra de pesquisa levam à execução de uma *query* SQL possivelmente vulnerável. O *Burp Suite* permite utilizar a funcionalidade de *repeater*, de maneira a repetir o pedido HTTP GET associado à barra de pesquisa, mas um *payload* específico, na tentativa de manipular o resultado a obter.
+Ao usar a ferramenta de análise dinâmica ***Burp Suite*** para controlar os pedidos HTTP, verifica-se que as submissões na barra de pesquisa levam à execução de uma *query* SQL possivelmente vulnerável. O ***Burp Suite*** permite utilizar a funcionalidade de *repeater* de maneira a repetir o pedido HTTP GET associado à barra de pesquisa, mas com um *payload* específico, na tentativa de manipular o resultado a obter.
 
 O pedido HTTP em causa é o seguinte: `GET /rest/products/search?q`.
 
-Para tentar perceber se a *query* não está, efetivamente, a ser sanitizada, pelo que pode ser manipulada, seguem-se as etapas descritas:
+Para tentar perceber se a *query* não está, efetivamente, a ser sanitizada - pelo que pode ser manipulada - seguem-se as seguintes etapas:
 
 1. Ao pesquisar por `banana`, surgem resultados;
-2. A pesquisa por `banana'` origina erros na resposta, o que mostra que o *input* não é devidamente sanitizado;
+2. A pesquisa por `banana'` origina erros na resposta, o que mostra que o *input* não é devidamente sanitizado.
 
-Ora, para se obter o esquema da base de dados, o pedido HTTP deve ser semelhante a `SELECT sql FROM sqlite_master`. Assim, se for possível manipular a pesquisa para ser realizada a operação de união (`UNION`) com esta *query*, o valor retornado deverá o esquema da base de dados, tal como pretendido.
+Ora, para se obter o esquema da base de dados, o pedido HTTP deve ser semelhante a `SELECT sql FROM sqlite_master`. Assim, se for possível manipular a pesquisa para ser realizada a operação de união (`UNION`) com esta *query*, o valor retornado deverá ser o esquema da base de dados, tal como pretendido.
 
-Nesse sentido, experimenta-se o seguinte enviar o pedido `GET /rest/products/search?q=banana'--`, que dá erro, visto que existe um erro no fecho/emparelhamento dos parêntesis da *query* SQL, pelo que o *input* deve ter de ser manipulado. Nesse caso, o objetivo é enviar um pedido com a estrutura `GET /rest/products/search?q=banana'))[...]--`.
+Nesse sentido, experimenta-se enviar o pedido HTTP `GET /rest/products/search?q=banana'--`, que dá erro, visto que existe um erro no fecho/emparelhamento dos parêntesis da *query* SQL, pelo que o *input* deve ter de ser alterado. Nesse caso, o objetivo é enviar um pedido com a estrutura `GET /rest/products/search?q=banana'))[...]--`.
 
-Assim, envia-se o pedido `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20%20FROM%20sqlite_master-`, contendo a *query* pretendida. Este pedido retorna o erro exposto abaixo.
+Assim, envia-se o pedido `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20%20FROM%20sqlite_master-`, contendo a *query* pretendida, no qual os valores `%20` representam espaços, codificados para URL. Este pedido retorna o erro exposto abaixo.
 
 ```json
 "error": {
@@ -113,12 +113,12 @@ Assim, envia-se o pedido `GET /rest/products/search?q=banana'))%20UNION%20SELECT
     "errno": 1,
     "code": "SQLITE_ERROR",
     "sql": "SELECT * FROM Products WHERE ((name LIKE '%banana')) UNION SELECT * FROM sqlite_master--%' OR description LIKE '%banana')) UNION SELECT * FROM sqlite_master--%') AND deletedAt IS NULL) ORDER BY name"
-  }
+}
 ```
 
 Deste modo, percebe-se que os operandos da operação de união não têm o mesmo tamanho, pelo que é necessário descobrir qual é esse número. Através de tentativas por força-bruta, é facilmente percetível que o tamanho correto é obtido com o pedido `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20,null,null,null,null%20FROM%20sqlite_master--`.
 
-Assim, chega-se ao pedido `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20sql,2,3,4,5,6,7,8,9%20FROM%20sqlite_master--`, que retorna o resultado pretendido. Neste caso, para ser bem-sucedido, o `SELECT` requer mais oito campos (`2,3,4,5,6,7,8,9`), que têm de ter valor não nulo de maneira a serem corretamente mapeados nas colunas da *query* à tabela `sqlite_master`.
+Assim, chega-se ao pedido HTTP `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20sql,2,3,4,5,6,7,8,9%20FROM%20sqlite_master--`, que retorna o resultado pretendido. Neste caso, para ser bem-sucedido, o `SELECT` requer mais oito campos (`2,3,4,5,6,7,8,9`), que têm de ter valor não nulo de maneira a serem corretamente mapeados nas colunas da *query* à tabela `sqlite_master`.
 
 Por isso, o desafio considera-se bem-sucedido.
 
@@ -129,32 +129,32 @@ Em particular, as linhas de código responsáveis são as seguintes, pertencente
 ```ts
 module.exports = function searchProducts () {
     return (req: Request, res: Response, next: NextFunction) => {
-    let criteria: any = req.query.q === 'undefined' ? '' : req.query.q ?? ''
-    criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)
-        .then(([products]: any) => {
-        const dataString = JSON.stringify(products)
-        for (let i = 0; i < products.length; i++) {
-            products[i].name = req.__(products[i].name)
-            products[i].description = req.__(products[i].description)
-        }
-        res.json(utils.queryResultToJson(products))
-        }).catch((error: ErrorWithParent) => {
-        next(error.parent)
-        })
+        let criteria: any = req.query.q === 'undefined' ? '' : req.query.q ?? ''
+        criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
+        models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)
+            .then(([products]: any) => {
+                const dataString = JSON.stringify(products)
+                for (let i = 0; i < products.length; i++) {
+                    products[i].name = req.__(products[i].name)
+                    products[i].description = req.__(products[i].description)
+                }
+                res.json(utils.queryResultToJson(products))
+            }).catch((error: ErrorWithParent) => {
+                next(error.parent)
+            })
     }
 }
 ```
 
 Na função `searchProducts()`, a linha ```models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)``` permite a manipulação da *query* SQL a executar, ao não efetuar qualquer processo de verificação nem de sanitização do *input* introduzido em `criteria`.
 
-Deste modo, uma possibilidade que resolveria esta vulnerabilidade consistiria em utilizar o mecanismo de *binding* da linguagem para criar um *prepared statement* com a *query* a executar. Em concreto, o código deveria passar a ```models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%:criteria%' OR description LIKE '%:criteria%') AND deletedAt IS NULL) ORDER BY name`, { replacements: { criteria } } )```.  Assim, previne-se a possibilidade de manipulação da sintaxe da *query* através da submissão de *inputs* indevidos pelo utilizador, ao ser estabelecida previamente à entrada de qualquer *input*.
+Deste modo, uma possibilidade que resolveria esta vulnerabilidade consiste em utilizar o mecanismo de *binding* da linguagem para criar um *prepared statement* com a *query* a executar. Em concreto, o código deveria passar a ```models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%:criteria%' OR description LIKE '%:criteria%') AND deletedAt IS NULL) ORDER BY name`, { replacements: { criteria } } )```.  Assim, previne-se a possibilidade de manipulação da sintaxe da *query* através da submissão de *inputs* indevidos pelo utilizador, estabelecendo a execução pretendida previamente à entrada de qualquer *input*.
 
 O ***SonarCloud*** - enquanto analisador estático automatizado - identifica corretamente esta vulnerabilidade, na linha de código correspondente.
 
 ![SonarCloud](/Lab3/images/sonarcloud-3.png)
 
-Tal como anteriormente, o ***SonarCloud*** instrui o Engenheiro de *Software* a modificar o código no sentido de não construir a *query* SQL de forma direta a partir do *input* controlado pelo utilizador, sugerindo que os dados sejam devidamente validados e sanitizados previamente.
+Tal como anteriormente, o ***SonarCloud*** instrui o Engenheiro de *Software* a modificar o código no sentido de não construir a *query* SQL de forma direta a partir do *input* controlado pelo utilizador, sugerindo que os dados sejam validados e sanitizados previamente.
 
 Igualmente, esta deteção do ***SonarCloud*** provém da sua capacidade de realizar *taint analysis*, através da qual o pedido HTTP efetuado pelo utilizador é considerado a origem dos dados, sendo o destino a chamada à base de dados, como se verifica na seguinte imagem.
 
@@ -166,7 +166,7 @@ TODO: you may patch the code and rerun the analyses. would the analysers no long
 
 ### GDPR Data Erasure
 
-O desafio *GDPR Data Erasure* tem como objetivo iniciar sessão com a conta do *Chris*, apesar de o utilizador ter sido eliminado. Este desafio não só está relacionado com ambos os anteriores, mas também vai para além das vulnerabilidades de *SQL Injection* ao ponto de poder ser atribuído à falta de conformidade com o Regulamento Geral de Proteção de Dados (GDPR) no processo de eliminação de dados.
+O desafio *GDPR Data Erasure* tem como objetivo iniciar sessão com a conta do *Chris*, apesar de o utilizador ter (supostamente) sido eliminado. Este desafio não só está relacionado com ambos os anteriores, mas também vai para além das vulnerabilidades de *SQL Injection*, ao ponto de poder ser atribuído à falta de conformidade com o Regulamento Geral de Proteção de Dados (GDPR) no processo de eliminação de dados.
 
 A técnica utilizada anteriormente no desafio *Database Schema* pode ser repetida para pesquisar pelo e-mail e nome do utilizador *Chris*, bem como a data de eliminação da conta. Assim, envia-se o pedido HTTP `GET /rest/products/search?q=banana'))%20UNION%20SELECT%20deletedAt,username,email,1,2,3,4,5,6%20FROM%20Users--`. Deste modo, obtêm-se os campos `username`, `email` e `deletedAt` de todos os utilizadores registados na *Juice Shop*, encontrando-se facilmente o e-mail do *Chris* através de uma pesquisa: `chris.pike@juice-sh.op`.
 
@@ -176,7 +176,7 @@ A imagem seguinte evidencia o desafio concluído com sucesso.
 
 ![GDPR Data Erasure](/Lab3/images/GDPR-data-erasure.png)
 
-De modo idêntico aos casos anteriores, a vulnerabilidade que possibilita a execução deste ataque é a validação incorreta do *input* do utilizador - para concretizar *SQL Injection* -, bem como a falta de cumprimento dos requisitos de conformidade do GDPR.
+De modo idêntico aos casos anteriores, a vulnerabilidade que possibilita a execução deste ataque é a validação incorreta do *input* do utilizador - para concretizar *SQL Injection* -, bem como, desta vez, a falta de cumprimento dos requisitos de conformidade do GDPR.
 
 O código responsável por esta vulnerabilidade encontra-se nas linhas abaixo, dos ficheiros `dataErasure.ts` e `privacyRequests.ts`, respetivamente.
 
@@ -231,18 +231,14 @@ De maneira a corrigir esta falha lógica, o utilizador deveria ser efetivamente 
 
 ```ts
     const userId = loggedInUser.data.id
-    await SecurityAnswerModel.destroy({ where: { UserId: userId } })
-    await PrivacyRequestModel.destroy({ where: { UserId: userId } })
     await UserModel.destroy({ where: { id: userId } })
 ```
 
-Note-se que, além disto, a base de dados deve estar configurada adequadamente para lidar com a eliminação de utilizadores, tomando as ações corretas através de operações `ON CASCADE`.
+Note-se que, além disto, a base de dados deve estar configurada adequadamente para lidar com a eliminação de utilizadores, tomando as ações corretas através de operações `ON CASCADE`. Se, por quaisquer motivos legais, os dados do utilizador não puderem ser eliminados durante um determinado período de tempo, devem ser definidas todas as validações/verificações necessárias para impedir que esses utilizadores que solicitaram a própria eliminação não sejam capazes de realizar qualquer ação, nomeadamente iniciar sessão, como foi o caso.
 
-Sendo esta uma vulnerabilidade de *business logic*, o analisador estático automatizado ***SonarCloud*** não é capaz de a detetar, nem no ficheiro `dataErasure.ts`, nem em `privacyRequests.ts`. Isto sucede precisamente porque, no código, não existe qualquer erro ou falha de implementação, mas sim um erro lógico de funcionalidade inadequada, que não pode ser detetado por analisadores automatizados estáticos, como é o caso do ***SonarCloud***, visto que estas ferramentas não têm informação suficiente para determinar quais as funcionalidades pretendidas pelo Engenheiro de *Software*, pelo que não tem forma de as comparar com a implementação concreta real.
+Sendo esta uma vulnerabilidade de *business logic*, o analisador estático automatizado ***SonarCloud*** não é capaz de a detetar, nem no ficheiro `dataErasure.ts`, nem em `privacyRequests.ts`. Isto sucede precisamente porque, no código, não existe qualquer erro ou falha de implementação, mas sim um erro lógico de funcionalidade inadequada, que não pode ser detetado por analisadores automatizados estáticos, como é o caso do ***SonarCloud***, visto que estas ferramentas não têm informação suficiente para determinar quais as funcionalidades pretendidas pelo Engenheiro de *Software*, pelo que não têm forma de as comparar com a implementação concreta real.
 
-TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
-
-TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+Assim sendo, não é pertinente nem aplicável corrigir o código para repetir a análise, dado que o analisador já não a deteta na primeira instância, ou seja, quando está presente, pelo que é esperado que assim permaneça após a retificação do código.
 
 ---
 
@@ -260,7 +256,7 @@ A estratégia mais comum para solucionar esta classe de vulnerabilidades passa p
 
 Além disso, existe ainda a possibilidade de utilizar bibliotecas/*frameworks* *Object Relation Mapping*, alinhando o código de programação com as estruturas de bases de dados e tratando as *queries* como chamadas a métodos de classes/objetos, o que impossibilita o utilizador de manipular os comandos a executar.
 
-No mínimo - e de forma mais geral/transversal a outras vulnerabilidades -, deve ser pelo menos validado adequadamente o *input*, assumindo que qualquer *input* proveniente do utilizador pode ser malicioso. Assim, deve ser usada uma *whitelist* de *inputs* permitidos, que garantidamente não são capazes contornar os mecanismos de segurança. Deste modo, rejeita-se qualquer valor de *input* que não pertença a esta lista, assegurando o correto funcionamento do sistema, em termos de segurança. É igualmente recomendável que as mensagens de erro para o utilizador não sejam tão informativas como nestes desafios, de maneira a minimizar a informação fornecida a atores potencialmente maliciosos, dificultando eventuais ataques.
+No mínimo - e de forma mais geral/transversal a outras vulnerabilidades -, deve ser, pelo menos, validado adequadamente o *input*, assumindo que qualquer *input* proveniente do utilizador pode ser malicioso. Assim, deve ser usada uma *whitelist* de *inputs* permitidos, que garantidamente não são capazes contornar os mecanismos de segurança. Deste modo, rejeita-se qualquer valor de *input* que não pertença a esta lista, assegurando o correto funcionamento do sistema, em termos de segurança. É igualmente recomendável que as mensagens de erro para o utilizador não sejam tão informativas como nestes desafios, de maneira a minimizar a informação fornecida a atores potencialmente maliciosos, dificultando eventuais ataques.
 
 ## Cross-Site Scripting (XSS)
 
@@ -268,9 +264,9 @@ O desafio escolhido relativo a *Cross-Site Scripting* (XSS) é o ***API-Only XSS
 
 ### API-Only XSS
 
-No desafio *API-Only XSS*, o pretendido é realizar um ataque de XSS persistente/armazenado com `iframe src="javascript:alert('xss')` sem utilizar o *frontend* da aplicação *web*. Assim, pretende-se que o cliente chame métodos da API não disponíveis através da interface *web*, de maneira a armazenar dados maliciosos na base de dados, capazes de afetar futuros pedidos.
+No desafio *API-Only XSS*, o pretendido é realizar um ataque de XSS persistente/armazenado com `<iframe src="javascript:alert('xss')>` sem utilizar o *frontend* da aplicação *web*. Assim, pretende-se que o cliente chame métodos da API não disponíveis através da interface *web*, de maneira a armazenar dados maliciosos na base de dados, capazes de afetar futuros pedidos.
 
-O objetivo deste desafio prende-se em perceber como fazer uso da API da aplicação *web* para executar o *payload* pretendido. Ao explorar o *site* através do *browser*, monitorizando os pedidos com o *Burp Suite*, encontram-se facilmente algumas APIs, como `/Users`, `Products`, `Challenges` e `Quantitys`, entre outras. A imagem abaixo demonstra isto mesmo.
+O objetivo deste desafio prende-se em perceber como fazer uso da API da aplicação *web* para executar o *payload* pretendido. Ao explorar o *site* através do *browser*, monitorizando os pedidos com o ***Burp Suite***, encontram-se facilmente algumas APIs, como `/Users`, `Products`, `Challenges` e `Quantitys`, entre outras. A imagem abaixo demonstra isto mesmo.
 
 ![API-Only XSS](/Lab3/images/api-only-xss-1.png)
 
@@ -289,17 +285,17 @@ Para averiguar se, com o mesmo campo de autorização, é possível realizar ped
 
 Deste modo, obtém-se uma lista de todos os produtos, demonstrando que o pedido foi bem-sucedido.
 
-Ao realizar um pedido HTTP OPTIONS - no sentido de identificar todos os verbos HTTP válidos para o *endpoint* em questão, obtém-se o seguinte resultado.
+Ao realizar um pedido HTTP OPTIONS - no sentido de identificar todos os verbos HTTP válidos para o *endpoint* em questão -, obtém-se o seguinte resultado.
 
 ![API-Only XSS](/Lab3/images/api-only-xss-3.png)
 
-Ou seja, é possível realizar pedidos ao *endpoint* `/api/Products` utilizando os métodos HTTP GET, HEAD, PUT, PATCH, POST e DELETE.
+Ou seja, é possível realizar pedidos ao *endpoint* `/api/Products` utilizando os métodos GET, HEAD, PUT, PATCH, POST e DELETE.
 
-A abordagem inicial passa por utilizar o método HTTP PUT, com o qual se verifica que um pedido a `/api/Products/id`, substituindo o campo `id` por um número arbitrário, retorna uma resposta `200 OK`, indicando sucesso.
+A abordagem inicial passa por utilizar o método HTTP PUT, com o qual se verifica que um pedido a `/api/Products/id` - substituindo o campo `id` por um número arbitrário - retorna uma resposta `200 OK`, indicando sucesso.
 
 No entanto, a tentativa de utilizar esta abordagem para alterar a descrição do produto *Orange Juice* não é bem-sucedida, visto que o conteúdo do mesmo permanece inalterado, apesar de a resposta ser `200 OK`. Isto provavelmente deve-se ao facto de um utilizador normal, isto é, não administrador, não ter permissões suficientes/necessárias para alterar um produto.
 
-Tendo em conta que o campo `Authorization` contém um JSON *web token* - reconhecido por começar por `ey` - associado à conta do utilizador autenticado, deve ser essa a razão pela qual não é possivel alterar o conteúdo do produto. Assim, pode tentar-se descobrir o *token* da conta com permissões de administrador (`admin@juice-sh.op`), aproveitando as abordagens anteriores e o *Burp Suite*.
+Tendo em conta que o campo `Authorization` contém um JSON *web token* - reconhecido por começar por `ey` - associado à conta do utilizador autenticado, deve ser essa a razão pela qual não é possivel alterar o conteúdo do produto. Assim, pode tentar-se descobrir o *token* da conta com permissões de administrador (`admin@juice-sh.op`), aproveitando as abordagens anteriores e o ***Burp Suite***.
 
 Ao tentar enviar um pedido HTTP PUT com o JSON *web token* do administrador, continua a obter-se o mesmo resultado de sucesso, mas sem alteração do conteúdo, o que indicia que algo ainda está em falta. Efetivamente, ao acrescentar o *header* `Content-Type: application/json` ao pedido HTTP enviado, o resultado já vai ao encontro do esperado, alterando a descrição do produto.
 
@@ -319,7 +315,7 @@ Deste modo, conclui-se o desafio com sucesso.
 
 Assim como nos casos anteriores, a falha de segurança que permite a concretização deste ataque é a errada validação do *input* enviado pelo utilizador, neste caso nos pedidos à API.
 
-A função que contém o código vulnerável encontra-se abaixo.
+A função que contém o código vulnerável encontra-se abaixo, no ficheiro `main.js`.
 
 ```ts
 ngAfterViewInit () {
@@ -398,7 +394,6 @@ ngAfterViewInit () {
     forkJoin([quantities, products]).subscribe(([quantities, products]) => {
         const dataTable: TableEntry[] = []
         this.tableData = products
-        this.trustProductDescription(products)
         for (const product of products) {
             dataTable.push({
                 name: product.name,
@@ -463,7 +458,7 @@ A imagem seguinte exemplifica este tipo de ataques.
 
 Os impactos desta vulnerabilidade podem afetar a confidencialidade, integridade, disponibilidade e controlo de acessos do sistema. Mais concretamente, é possível executar código/comandos de forma não autorizada (como foi o caso), ler dados aplicacionais e contornar mecanismos de proteção.
 
-O método adequado para a resolução destas vulnerabilidades consiste em realizar uma validação correta do *input* do utilizador, neutralizando-o e sanitizando-o de maneira a impedir manipulações indevidas que levam a desviar o comportamento do sistema daquele que seria esperado. A abordagem pode ser tão simples como chamar as funções adequadas da linguagem de programação em causa para escapar o *input*, removendo, codificando ou escapando todos os caracteres potencialmente maliciosos.
+O método adequado para a resolução destas vulnerabilidades consiste em realizar uma validação correta do *input* do utilizador, neutralizando-o e sanitizando-o de maneira a impedir manipulações indevidas que levam a desviar o comportamento do sistema daquele que seria esperado. A abordagem pode ser tão simples como chamar as funções adequadas da linguagem de programação em causa para tratar o *input*, removendo, codificando ou escapando todos os caracteres potencialmente maliciosos.
 
 A par disto, devem ser utilizados mecanismos estruturados que forcem automaticamente a separação entre código e dados, para garantir a segurança da aplicação. Neste caso em concreto, codificar o *output* disponibilizado aos utilizadores contribuiria também para mitigar a vulnerabilidade, ao impedir a execução do *script*.
 
@@ -475,13 +470,13 @@ O desafio selecionado para explorar falhas de *Broken Access Control* é o ***Fo
 
 ### Forged Review
 
-Neste desafio *Forged Review*, pretende-se publicar um comentário de *feedback*/*review* em nome de outro utilizador da plataforma. Nesse sentido, o desafio visa a demonstrar existem pedidos HTTP à REST API que não estão adequadamente protegidos e para os quais não é corretamente validada a autenticação do utilizador.
+Neste desafio *Forged Review*, pretende-se publicar um comentário de *feedback*/*review* em nome de outro utilizador da plataforma. Nesse sentido, o desafio visa demonstrar que existem pedidos HTTP à REST API que não estão adequadamente protegidos e para os quais não é corretamente validada a autenticação do utilizador.
 
 Em concreto, o utilizador-alvo - em nome do qual deve ser publicado o comentário - é o `bender@juice-sh.op`.
 
-Tendo em conta que não é possível publicar qualquer conteúdo sem estar autenticado, opta-se por iniciar o processo por iniciar sessão com uma conta arbitrária, aproveitando a vulnerabilidade de *SQL Injection* anteriormente identificada e exemplificada. A título de exemplo, inicia-se sessão com o utilizador `stan@juice-sh.op`.
+Tendo em conta que não é possível publicar qualquer conteúdo sem estar autenticado, opta-se por começar o processo ao iniciar sessão com uma conta arbitrária, aproveitando a vulnerabilidade de *SQL Injection* anteriormente identificada e exemplificada. A título de exemplo, inicia-se sessão com o utilizador `stan@juice-sh.op`.
 
-Ao utilizar o *Burp Suite* para manipular os pedidos HTTP associados à publicação de *feedback*, identifica-se o pedido HTTP em questão como sendo o seguinte, transcrito de forma simplificada.
+Ao utilizar o ***Burp Suite*** para manipular os pedidos HTTP associados à publicação de *feedback*, identifica-se o pedido HTTP em questão como sendo o seguinte, transcrito de forma simplificada.
 
 ```
 PUT /rest/products/1/reviews
@@ -489,9 +484,9 @@ HTTP/1.1
 {"message":"I love apples!","author":"stan@juice-sh.op"}
 ```
 
-Efetivamente, o pedido HTTP contém a *review* enviada no formato JSON, com os campos `message` e `author`. O campo `message` apresenta o conteúdo a publicar, enquanto `author` contém o e-mail do utilizador associado à publicação.
+Efetivamente, o pedido HTTP contém a *review* enviada em formato JSON, com os campos `message` e `author`. O campo `message` apresenta o conteúdo a publicar, enquanto `author` contém o e-mail do utilizador associado à publicação.
 
-Assim, ao enviar um novo pedido com estes campos modificados de maneira a enviar outra mensagem em `message` e a conter `bender@juice-sh.op` em `author`, consegue-se facilmente efetuar uma publicação em nome de outro utilizador.
+Assim, ao enviar um novo pedido com estes campos modificados, de maneira a enviar outra mensagem em `message` e a conter `bender@juice-sh.op` em `author`, consegue-se facilmente efetuar uma publicação em nome de outro utilizador.
 
 De facto, este ataque explora uma vulnerabilidade de *Broken Access Control*.
 
@@ -518,7 +513,7 @@ module.exports = function productReviews () {
 
 A função `productReviews()` extrai o utilizador autenticado para a variável `user` (`const user = security.authenticatedUsers.from(req)`), mas não utiliza esse valor. Em vez disso, o `id` utilizado para a publicação do conteúdo é enviado no próprio pedido sem validação se pertence ao utilizador autenticado, em `{ _id: req.body.id }`.
 
-Por isso, para resolver esta vulnerabilidade basta corrigir o código acima identificado, alterando-o para o seguinte, com destaque para a linha `{ _id: req.body.id, author: user.data.email }`.
+Por isso, para resolver esta vulnerabilidade, basta corrigir o código acima identificado, alterando-o para o seguinte, com destaque para a linha `{ _id: req.body.id, author: user.data.email }`.
 
 ```ts
 module.exports = function productReviews () {
@@ -539,19 +534,19 @@ module.exports = function productReviews () {
 }
 ```
 
-Desta forma, a porção de código `author: user.data.email` vai buscar a informação do e-mail do utilizador autenticado à sessão atual, garantindo que não é submetida informação de outro utilizador, indevidamente. Assim, impede-se facilmente a adulteração de informação publica na *review*.
+Desta forma, a porção de código `author: user.data.email` vai buscar a informação do e-mail do utilizador autenticado à sessão atual, garantindo que não é indevidamente submetida informação de outro utilizador. Assim, impede-se facilmente a adulteração de informação publicada na *review*.
 
 A ferramenta de análise estática automatizada ***SonarCloud*** não identifica concretamente esta vulnerabilidade de *Broken Access Control*, ainda que saliente outra falha, na mesma linha de código.
 
 ![SonarCloud](/Lab3/images/sonarcloud-9.png)
 
-Efetivamente, o ***SonarCloud*** assinala que, no excerto de código mostrado, a *query* à base de dados contem informação diretamente controlada pelo utilizador, pelo que deve ser alterada para ser validada/sanitizada. No entanto, a ferramenta não é capaz de encontrar esta falha de *Broken Access Control*, limitando-se à deteção da possível *injection*.
+Efetivamente, o ***SonarCloud*** assinala que, no excerto de código mostrado, a *query* à base de dados contém informação diretamente controlada pelo utilizador, pelo que deve ser alterada para ser validada/sanitizada. No entanto, a ferramenta não é capaz de encontrar esta falha de *Broken Access Control*, limitando-se à deteção da possível *SQL Injection*.
 
 Por um lado, o mecanismo interno de *taint analysis* do ***SonarCloud*** é responsável por detetar a falta de validação/sanitização adequada do *input*, proveniente do pedido HTTP do utilizador e destinado à base de dados, conforme se evidencia na imagem abaixo. Por outro lado, a incapacidade em detetar a vulnerabilidade de *Broken Access Control* deve-se ao facto de esta ferramenta não compreender a lógica que deve estar subjacente ao código em causa, pelo que as variáveis e os respetivos valores não têm qualquer significado semântico para a análise.
 
 ![SonarCloud](/Lab3/images/sonarcloud-10.png)
 
-Assim, o ***SonarCloud*** limita-se a detetar a vulnerabilidade de *injection*, mas deixa escapar a falha de *Broken Access Control*.
+Assim, o ***SonarCloud*** limita-se a detetar a vulnerabilidade de *SQL Injection*, mas deixa escapar a falha de *Broken Access Control*.
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
 
@@ -576,6 +571,20 @@ Eventuais ataques que explorem estas falhas podem comprometer o controlo de aces
 
 A abordagem correta para corrigir estas vulnerabilidades passa por, no processo de arquitetura e *design*, garantir que, em cada acesso/ação, o utilizador tem privilégios suficientes para o/a realizar e que a chave utilizada na pesquisa do registo desse mesmo utilizador não é controlável externamente por ele, permitindo a deteção de tentativas de fraude/manipulação. 
 
-Em particular, o produto pode e deve ser dividido em áreas de acesso anónimo, normal, privilegiado ou administrativo, reduzindo a superfície de ataque ao mapear corretamente os papéis e funções dos diferentes tipos de utilizadores com as funcionalidades esperadas para os mesmos. Juntamente a isto, devem ser realizadas verificações de controlo de acessos de acordo com a lógica pretendida, forçando validações do lado de servidor aquando de cada pedido.
+Em particular, o produto pode e deve ser dividido em áreas de acesso anónimo, normal, privilegiado ou administrativo, reduzindo a superfície de ataque ao mapear corretamente os papéis e funções dos diferentes tipos de utilizadores com as funcionalidades esperadas para os mesmos. Juntamente a isto, devem ser realizadas verificações de controlo de acessos de acordo com a lógica pretendida, forçando validações do servidor aquando de cada pedido.
 
 Assim, deve ser respeitado o princípio de separação de privilégios e ter especial atenção/cuidado com os campos utilizados para autenticação/autorização, que nunca devem ser controlados pelo utilizador/cliente. A par disto, todas as validações devem ser efetuadas do lado do servidor, de maneira a impedir a sua manipulação ou contorno por parte do cliente.
+
+## Conclusão
+
+Em suma, a tabela seguinte resume os desafios realizados e a informação extraída das ferramentas de análise no que toca à sua capacidade de detetar as vulnerabilidades em questão.
+
+|       **Desafio**       | ***Burp Suite*** | ***SonarCloud*** |
+| ----------------------- | ---------------- | ---------------- |
+|    ***Login Bender***   |        N/A       |       SIM        |
+|  ***Database Schema***  |        SIM       |       SIM        |
+| ***GDPR Data Erasure*** |        SIM       |       NÃO        |
+|   ***API-Only XSS***    |        SIM       |       N/A        |
+|   ***Forged Review***   |        SIM       |       NÃO        |
+
+Assim, conclui-se facilmente que a ferramenta de análise estática ***SonarCloud*** é capaz de detetar vulnerabilidades de injeção devido a validações inadequadas do *input* do utilizador, mas o analisador dinâmico ***Burp Suite*** é mais versátil e eficaz para detetar todo o tipo de vulnerabilidades de diferentes categorias.
