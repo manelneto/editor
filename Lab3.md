@@ -27,7 +27,7 @@ Note-se que deve ser evitada a abordagem mais comum de colocar `OR 1=1` neste at
 
 A vulnerabilidade que permitiu o ataque é a validação imprópria do *input*.
 
-As linhas de código que são responsáveis por esta vulnerabilidade transcrevem-se abaixo.
+As linhas de código que são responsáveis por esta vulnerabilidade transcrevem-se abaixo, encontrando-se no ficheiro `login.ts`. 
 
 ```ts
 module.exports = function login () {
@@ -73,7 +73,17 @@ Na função `login()`, a linha ```models.sequelize.query(`SELECT * FROM Users WH
 
 Uma alternativa que solucionaria esta vulnerabilidade seria fazer *bind* aos parâmetros da *query*, modificando a linha de código para ```models.sequelize.query(`SELECT * FROM Users WHERE email = $mail AND password = $pass AND deletedAt IS NULL`, { bind: { mail: req.body.email, pass: security.hash(req.body.password) }, model: models.User, plain: true })```. Desta forma, a *query* tornar-se-ia equivalente a um *prepared statement*, evitando adulterações na sintaxe através da introdução de *inputs* maliciosos por parte do utilizador, sendo fixada/preparada antes de qualquer *input* lhe ser fornecido.
 
-TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
+O analisador estático automatizado ***SonarCloud*** deteta corretamente esta vulnerabilidade, identificando a linha de código em questão.
+
+![SonarCloud](/Lab3/images/sonarcloud-1.png)
+
+Efetivamente, o ***SonarCloud*** sugere a alteração do código para não construir a *query* SQL diretamente a partir de dados controlados pelo utilizador, sem a validação adequada.
+
+O ***SonarCloud*** é capaz de detetar esta vulnerabilidade porque, internamente, realiza *taint analysis*, identificando como fonte o pedido HTTP proveniente do utilizador e como destino a invocação à base de dados, tal como sugere a imagem abaixo.
+
+![SonarCloud](/Lab3/images/sonarcloud-2.png)
+
+Como não existe qualquer sanitização do *input* do utilizador desde a origem até ao destino, o ***SonarCloud*** identifica esta linha de codigo como uma potencial vulnerabilidade.
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
 
@@ -114,7 +124,7 @@ Por isso, o desafio considera-se bem-sucedido.
 
 Tal como anteriormente, a vulnerabilidade que viabiliza este ataque é a validação inadequada do *input* do utilizador.
 
-Em particular, as linhas de código responsáveis são as seguintes.
+Em particular, as linhas de código responsáveis são as seguintes, pertencentes ao ficheiro `search.ts`.
 
 ```ts
 module.exports = function searchProducts () {
@@ -140,7 +150,17 @@ Na função `searchProducts()`, a linha ```models.sequelize.query(`SELECT * FROM
 
 Deste modo, uma possibilidade que resolveria esta vulnerabilidade consistiria em utilizar o mecanismo de *binding* da linguagem para criar um *prepared statement* com a *query* a executar. Em concreto, o código deveria passar a ```models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%:criteria%' OR description LIKE '%:criteria%') AND deletedAt IS NULL) ORDER BY name`, { replacements: { criteria } } )```.  Assim, previne-se a possibilidade de manipulação da sintaxe da *query* através da submissão de *inputs* indevidos pelo utilizador, ao ser estabelecida previamente à entrada de qualquer *input*.
 
-TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
+O ***SonarCloud*** - enquanto analisador estático automatizado - identifica corretamente esta vulnerabilidade, na linha de código correspondente.
+
+![SonarCloud](/Lab3/images/sonarcloud-3.png)
+
+Tal como anteriormente, o ***SonarCloud*** instrui o Engenheiro de *Software* a modificar o código no sentido de não construir a *query* SQL de forma direta a partir do *input* controlado pelo utilizador, sugerindo que os dados sejam devidamente validados e sanitizados previamente.
+
+Igualmente, esta deteção do ***SonarCloud*** provém da sua capacidade de realizar *taint analysis*, através da qual o pedido HTTP efetuado pelo utilizador é considerado a origem dos dados, sendo o destino a chamada à base de dados, como se verifica na seguinte imagem.
+
+![SonarCloud](/Lab3/images/sonarcloud-4.png)
+
+Visto que o *input* do utilizador é passado desde a origem até ao destino sem ser ser submetido a qualquer processo de sanitização/validação, o ***SonarCloud*** destaca a falha de segurança presente no código.
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
 
@@ -158,15 +178,67 @@ A imagem seguinte evidencia o desafio concluído com sucesso.
 
 De modo idêntico aos casos anteriores, a vulnerabilidade que possibilita a execução deste ataque é a validação incorreta do *input* do utilizador - para concretizar *SQL Injection* -, bem como a falta de cumprimento dos requisitos de conformidade do GDPR.
 
-O código responsável por esta vulnerabilidade encontra-se nas linhas abaixo.
+O código responsável por esta vulnerabilidade encontra-se nas linhas abaixo, dos ficheiros `dataErasure.ts` e `privacyRequests.ts`, respetivamente.
 
-```js
+```ts
+router.post('/', async (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): Promise<void> => {
+    const loggedInUser = insecurity.authenticatedUsers.get(req.cookies.token)
+    if (!loggedInUser) {
+        next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+        return
+    }
 
+    try {
+        await PrivacyRequestModel.create({
+            UserId: loggedInUser.data.id,
+            deletionRequested: true
+        })
+    ...
+    }
+}
 ```
 
-TODO: which lines of which code files were responsible for the vulnerabilities?
+```ts
+const PrivacyRequestModelInit = (sequelize: Sequelize) => {
+  PrivacyRequestModel.init(
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+      },
+      UserId: {
+        type: DataTypes.INTEGER
+      },
+      deletionRequested: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+      }
+    },
+    {
+      tableName: 'PrivacyRequests',
+      sequelize
+    }
+  )
+}
+```
 
-TODO: how can the code that led to these vulnerabilities be fixed?
+O primeiro excerto de código mostra que as submissões de pedidos de eliminação de dados de acordo com o GDPR originam a criação de um objeto da classe `PrivacyRequestModel`, com o atributo `deletionRequested` definido como `true`. No segundo bloco de código, verifica-se que a criação deste objeto com um pedido de privacidade não concretiza qualquer eliminação na base de dados, pelo que o utilizador que efetua a solicitação nunca é, efetivamente, eliminado.
+
+Assim, existe uma falha de conformidade com o GDPR que pode ser explorada por ataques que aproveitem a já explicada falha de *SQL Injection*. Ou seja, este caso combina uma vulnerabilidade técnica - validação inadequada do *input* do utilizador - com uma falha de *business logic*, que consiste no incumprimento do GDPR, isto é, na efetiva eliminação do utilizador.
+
+De maneira a corrigir esta falha lógica, o utilizador deveria ser efetivamente eliminado após submeter o pedido no formulário adequado, sendo que isto implicaria efetuar operações na base de dados. Assim, são várias as mudanças necessárias na lógica do sistema para solucionar este problema, mas que, em código, se podem resumir à adição das linhas seguintes.
+
+```ts
+    const userId = loggedInUser.data.id
+    await SecurityAnswerModel.destroy({ where: { UserId: userId } })
+    await PrivacyRequestModel.destroy({ where: { UserId: userId } })
+    await UserModel.destroy({ where: { id: userId } })
+```
+
+Note-se que, além disto, a base de dados deve estar configurada adequadamente para lidar com a eliminação de utilizadores, tomando as ações corretas através de operações `ON CASCADE`.
+
+Sendo esta uma vulnerabilidade de *business logic*, o analisador estático automatizado ***SonarCloud*** não é capaz de a detetar, nem no ficheiro `dataErasure.ts`, nem em `privacyRequests.ts`. Isto sucede precisamente porque, no código, não existe qualquer erro ou falha de implementação, mas sim um erro lógico de funcionalidade inadequada, que não pode ser detetado por analisadores automatizados estáticos, como é o caso do ***SonarCloud***, visto que estas ferramentas não têm informação suficiente para determinar quais as funcionalidades pretendidas pelo Engenheiro de *Software*, pelo que não tem forma de as comparar com a implementação concreta real.
 
 TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
 
@@ -377,6 +449,8 @@ ngAfterViewInit () {
 }
 ```
 
+
+
 ---
 
 O grupo de vulnerabilidades no qual este desafio se insere é a validação imprópria do *input*, que pode ser enviado ao servidor e ainda armazenado na base de dados do mesmo.
@@ -421,7 +495,7 @@ Assim, ao enviar um novo pedido com estes campos modificados de maneira a enviar
 
 De facto, este ataque explora uma vulnerabilidade de *Broken Access Control*.
 
-O código vulnerável encontra-se abaixo.
+O código vulnerável encontra-se abaixo, tendo sido extraído do ficheiro `updateProductReviews.ts`.
 
 ```ts
 module.exports = function productReviews () {
@@ -464,7 +538,17 @@ module.exports = function productReviews () {
 
 Desta forma, a porção de código `author: user.data.email` vai buscar a informação do e-mail do utilizador autenticado à sessão atual, garantindo que não é submetida informação de outro utilizador, indevidamente. Assim, impede-se facilmente a adulteração de informação publica na *review*.
 
-TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
+A ferramenta de análise estática automatizada ***SonarCloud*** não identifica concretamente esta vulnerabilidade de *Broken Access Control*, ainda que saliente outra falha, na mesma linha de código.
+
+![SonarCloud](/Lab3/images/sonarcloud-9.png)
+
+Efetivamente, o ***SonarCloud*** assinala que, no excerto de código mostrado, a *query* à base de dados contem informação diretamente controlada pelo utilizador, pelo que deve ser alterada para ser validada/sanitizada. No entanto, a ferramenta não é capaz de encontrar esta falha de *Broken Access Control*, limitando-se à deteção da possível *injection*.
+
+Por um lado, o mecanismo interno de *taint analysis* do ***SonarCloud*** é responsável por detetar a falta de validação/sanitização adequada do *input*, proveniente do pedido HTTP do utilizador e destinado à base de dados, conforme se evidencia na imagem abaixo. Por outro lado, a incapacidade em detetar a vulnerabilidade de *Broken Access Control* deve-se ao facto de esta ferramenta não compreender a lógica que deve estar subjacente ao código em causa, pelo que as variáveis e os respetivos valores não têm qualquer significado semântico para a análise.
+
+![SonarCloud](/Lab3/images/sonarcloud-10.png)
+
+Assim, o ***SonarCloud*** limita-se a detetar a vulnerabilidade de *injection*, mas deixa escapar a falha de *Broken Access Control*.
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
 
