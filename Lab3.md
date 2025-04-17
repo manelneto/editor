@@ -25,8 +25,6 @@ A imagem abaixo mostra a conclusão bem-sucedida do desafio.
 
 Note-se que deve ser evitada a abordagem mais comum de colocar `OR 1=1` neste ataque de *SQL Injection*, visto que essa *query* retornaria toda a tabela de utilizadores, iniciando a sessão do primeiro elemento/utilizador que, neste caso, é o `admin@juice-sh.op`, pelo que esta abordagem contrariaria o pretendido (`bender@juice-sh.op`).
 
-TODO: Describe the general vulnerability class associated with each group of challenges, including relevant CWEs and typical mitigation and fixing strategies.
-
 A vulnerabilidade que permitiu o ataque é a validação imprópria do *input*.
 
 As linhas de código que são responsáveis por esta vulnerabilidade transcrevem-se abaixo.
@@ -114,8 +112,6 @@ Assim, chega-se ao pedido `GET /rest/products/search?q=banana'))%20UNION%20SELEC
 
 Por isso, o desafio considera-se bem-sucedido.
 
-TODO: Describe the general vulnerability class associated with each group of challenges, including relevant CWEs and typical mitigation and fixing strategies.
-
 Tal como anteriormente, a vulnerabilidade que viabiliza este ataque é a validação inadequada do *input* do utilizador.
 
 Em particular, as linhas de código responsáveis são as seguintes.
@@ -175,6 +171,24 @@ TODO: how can the code that led to these vulnerabilities be fixed?
 TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+
+---
+
+A classe de vulnerabilidades geral associada a este grupo de três desafios é a validação imprópria do *input* que, neste caso em concreto, se materializa sob a forma de *SQL Injections*. 
+
+A *Common Weakness Enumeration* (CWE) relevante associada é a [***CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')***](https://cwe.mitre.org/data/definitions/89.html). Ou seja, a aplicação constrói comandos SQL usando *input* influenciado ou introduzido pelo utilizador, sem o neutralizar corretamente, o que permite que alguns elementos específicos (como `'` ou `--`) modifiquem o comando SQL pretendido. Desta forma, a *query* SQL gerada pelo programa pode ser modificada pelo utilizador de forma indevida, levando a que os *inputs* não sejam interpretados como seria expectável.
+
+A imagem abaixo ilustra isto mesmo.
+
+![SQL Injection](/Lab3/images/sql-injection.png)
+
+A possibilidade de explorar esta vulnerabilidade tem impactos extremamente diversificados, que podem abranger a confidencialidade, integridade, disponibilidade, autenticação e controlo de acessos do sistema. Em particular, é possível executar código ou comandos de forma não autorizada, ler ou modificar dados indevidamente e contornar os mecanismos de proteção de maneira a ganhar privilégios ou assumir identidades.
+
+A estratégia mais comum para solucionar esta classe de vulnerabilidades passa por construir *prepared statements*, isto é, pré-processar as *queries* SQL de modo que as variáveis de *input* controlado pelo utilizador estejam vinculadas a determinados campos da *query*, não permitindo a sua manipulação. Esta estratégia é extremamente simples e eficaz, tendo ainda a vantagem de poder aumentar o desempenho do sistema, pelo que é uma solução evidente para evitar este tipo de problemas.
+
+Além disso, existe ainda a possibilidade de utilizar bibliotecas/*frameworks* *Object Relation Mapping*, alinhando o código de programação com as estruturas de bases de dados e tratando as *queries* como chamadas a métodos de classes/objetos, o que impossibilita o utilizador de manipular os comandos a executar.
+
+No mínimo - e de forma mais geral/transversal a outras vulnerabilidades -, deve ser pelo menos validado adequadamente o *input*, assumindo que qualquer *input* proveniente do utilizador pode ser malicioso. Assim, deve ser usada uma *whitelist* de *inputs* permitidos, que garantidamente não são capazes contornar os mecanismos de segurança. Deste modo, rejeita-se qualquer valor de *input* que não pertença a esta lista, assegurando o correto funcionamento do sistema, em termos de segurança. É igualmente recomendável que as mensagens de erro para o utilizador não sejam tão informativas como nestes desafios, de maneira a minimizar a informação fornecida a atores potencialmente maliciosos, dificultando eventuais ataques.
 
 ## Cross-Site Scripting (XSS)
 
@@ -363,6 +377,24 @@ ngAfterViewInit () {
 }
 ```
 
+---
+
+O grupo de vulnerabilidades no qual este desafio se insere é a validação imprópria do *input*, que pode ser enviado ao servidor e ainda armazenado na base de dados do mesmo.
+
+A CWE mais pertinente associadas a este caso é a [***CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')***](https://cwe.mitre.org/data/definitions/79.html), mas também [***CWE-116: Improper Encoding or Escaping of Output***](https://cwe.mitre.org/data/definitions/116.html) e [***CWE-20: Improper Input Validation***](https://cwe.mitre.org/data/definitions/20.html), de forma mais geral. Em concreto, a CWE 79 representa a situação na qual o produto neutraliza incorretamente o *input* do utilizador antes de o colocar como *output* numa página *web* apresentada a outros utilizadores, permitindo a materialização de ataques de XSS, neste caso persistente/armazenado.
+
+A imagem seguinte exemplifica este tipo de ataques.
+
+![Cross-Site Scripting](/Lab3/images/cross-site-scripting.png)
+
+Os impactos desta vulnerabilidade podem afetar a confidencialidade, integridade, disponibilidade e controlo de acessos do sistema. Mais concretamente, é possível executar código/comandos de forma não autorizada (como foi o caso), ler dados aplicacionais e contornar mecanismos de proteção.
+
+O método adequado para a resolução destas vulnerabilidades consiste em realizar uma validação correta do *input* do utilizador, neutralizando-o e sanitizando-o de maneira a impedir manipulações indevidas que levam a desviar o comportamento do sistema daquele que seria esperado. A abordagem pode ser tão simples como chamar as funções adequadas da linguagem de programação em causa para escapar o *input*, removendo, codificando ou escapando todos os caracteres potencialmente maliciosos.
+
+A par disto, devem ser utilizados mecanismos estruturados que forcem automaticamente a separação entre código e dados, para garantir a segurança da aplicação. Neste caso em concreto, codificar o *output* disponibilizado aos utilizadores contribuiria também para mitigar a vulnerabilidade, ao impedir a execução do *script*.
+
+Em síntese, a solução para estes casos passa, uma vez mais, por adotar os devidos cuidados e medidas de segurança com todos os *inputs* provenientes do utilizador, que devem sempre ser considerados maliciosos. Assim, através de ferramentas de neutralização, codificação, padronização, escape, sanitização e validação, todos os *inputs* fornecidos ao sistema devem ser tratados.
+
 ## Broken Access Control
 
 O desafio selecionado para explorar falhas de *Broken Access Control* é o ***Forged Review***.
@@ -435,3 +467,28 @@ Desta forma, a porção de código `author: user.data.email` vai buscar a inform
 TODO: were the vulnerabilities detected by the automated (static or dynamic) analysers? why do you think that is the case?
 
 TODO: you may patch the code and rerun the analyses. would the analysers no longer report the fixed code as vulnerabilities? why do you think that is the case?
+
+---
+
+Esta vulnerabilidade insere-se num conjunto de falhas classificado como *Broken Access Control*, que consiste no controlo indevido/inadequado dos acessos a determinadas funcionalidades do sistema.
+
+As CWEs que melhor se enquadram neste âmbito são:
+1. [***CWE-284: Improper Access Control***](https://cwe.mitre.org/data/definitions/284.html), que consiste em restringir incorretamente o acesso aos recursos do sistema para atores não autorizados;
+2. [***CWE-285: Improper Authorization***](https://cwe.mitre.org/data/definitions/285.html), que passa por realizar incorretamente as verificações de autorização quando um ator tenta desempenhar alguma ação e/ou aceder a um recurso;
+3. [***CWE-639: Authorization Bypass Through User-Controlled Key***](https://cwe.mitre.org/data/definitions/639.html), ou seja, a funcionalidade de autorização do sistema permitir que um utilizador ganhe acesso aos dados/registos de outro utilizador, ao modificar o valor da chave que identifica esses dados;
+4. [***CWE-862: Missing Authorization***](https://cwe.mitre.org/data/definitions/862.html), isto é, o produto não realizar sequer uma verificação de autorização quando um ator tenta aceder a um recurso ou desempenhar alguma ação;
+5. [***CWE-269: Improper Privilege Management***](https://cwe.mitre.org/data/definitions/269.html), o que significa que o produto não atribui, modifica, regista ou verifica os privilégios para os atores do sistema, criando uma esfera de controlo mais permissiva do que devido.
+
+As imagens abaixo elucidam estas CWEs.
+
+![Broken Access Control](/Lab3/images/broken-access-control-1.png)
+
+![Broken Access Control](/Lab3/images/broken-access-control-2.png)
+
+Eventuais ataques que explorem estas falhas podem comprometer o controlo de acessos, a confidencialidade, a integridade e a disponibilidade do sistema. Na prática, é indevidamente permitido o contorno de mecanismos de proteção para ganhar privilégios ou assumir identidades, ler e modificar dados aplicacionais, ficheiros e/ou diretórios, bem como consumir recursos e causar falhas.
+
+A abordagem correta para corrigir estas vulnerabilidades passa por, no processo de arquitetura e *design*, garantir que, em cada acesso/ação, o utilizador tem privilégios suficientes para o/a realizar e que a chave utilizada na pesquisa do registo desse mesmo utilizador não é controlável externamente por ele, permitindo a deteção de tentativas de fraude/manipulação. 
+
+Em particular, o produto pode e deve ser dividido em áreas de acesso anónimo, normal, privilegiado ou administrativo, reduzindo a superfície de ataque ao mapear corretamente os papéis e funções dos diferentes tipos de utilizadores com as funcionalidades esperadas para os mesmos. Juntamente a isto, devem ser realizadas verificações de controlo de acessos de acordo com a lógica pretendida, forçando validações do lado de servidor aquando de cada pedido.
+
+Assim, deve ser respeitado o princípio de separação de privilégios e ter especial atenção/cuidado com os campos utilizados para autenticação/autorização, que nunca devem ser controlados pelo utilizador/cliente. A par disto, todas as validações devem ser efetuadas do lado do servidor, de maneira a impedir a sua manipulação ou contorno por parte do cliente.
