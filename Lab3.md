@@ -323,7 +323,7 @@ Deste modo, conclui-se o desafio com sucesso.
 
 Assim como nos casos anteriores, a falha de segurança que permite a concretização deste ataque é a errada validação do *input* enviado pelo utilizador, neste caso nos pedidos à API.
 
-A função que contém o código vulnerável encontra-se abaixo, no ficheiro `main.js`.
+A função que contém o código vulnerável encontra-se abaixo, no ficheiro `main.js`, parcialmente gerado a partir de `search-result.component.ts`.
 
 ```ts
 ngAfterViewInit () {
@@ -391,9 +391,11 @@ trustProductDescription (tableData: any[]) {
 
 Em concreto, a linha `tableData[i].description = this.sanitizer.bypassSecurityTrustHtml(tableData[i].description)` contorna a validação do *input*, pelo que deve ser removida.
 
-Assim, a forma correta de corrigir esta vulnerabilidade passa precisamente por remover a função `trustProductDescription()`, para que a descrição do produto seja adequadamente validada. Note-se, todavia, que, neste caso, o XSS é também uma consequência da aplicação incorreta do mecanismo de autorização, visto que os utilizadores nunca deveriam ter permissões para alterar descrições de produtos.
+Assim, a forma correta de corrigir esta vulnerabilidade passa precisamente por remover a função `trustProductDescription()`, para que a descrição do produto seja adequadamente validada.
 
-Portanto, o código acima exposto deveria deixar de conter a função `trustProductDescription()`, passando ao seguinte.
+Note-se, todavia, que, neste caso, o XSS é também uma consequência da aplicação incorreta do mecanismo de autorização, visto que os utilizadores nunca deveriam ter permissões para alterar descrições de produtos. Para além disto, a possibilidade de os utilizadores terem acesso ao JSON *web token* do administrador constitui também uma falha de segurança grave, que deve ser corrigida. Juntamente a isto, o *endpoint* `/api/Products/{id}` também não deveria estar acessível a utilizadores comuns da plataforma, sem privilégios administrativos, pelo que não deveria, sequer, responder a pedidos sem a correta autenticação, como indevidamente sucede.
+
+Portanto, na prática, o código acima exposto deveria deixar de conter a função `trustProductDescription()`, passando ao seguinte.
 
 ```ts
 ngAfterViewInit () {
@@ -452,11 +454,19 @@ ngAfterViewInit () {
 }
 ```
 
-Neste caso, não foi possível executar o ***SonarCloud***, visto que o código-fonte exposto após a conclusão do desafio não se encontra disponível no repositório associado à *Juice Shop*.
+A execução do ***SonarCloud*** contra o código-fonte exposto não evidencia a deteção desta vulnerabilidade, apesar de realçar as linhas de código em causa.
 
-No entanto, ao ser chamada a função `bypassSecurityTrustHtml()`, seria expectável que o ***SonarCloud***, enquanto ferramenta de análise estática, fosse capaz de identificar corretamente a vulnerabilidade. Este comportamento dever-se-ia ao facto de a função em causa contrariar as boas práticas de segurança, pelo que deveria constar de uma lista interna da ferramenta de funções que, quando utilizadas, devessem suscitar um alerta.
+![SonarCloud](/Lab3/images/sonarcloud-4-1.png)
 
-Assim sendo, após a aplicação da respetiva correção, seria expectável que o ***SonarCloud*** deixasse de reportar a vulnerabilidade, visto que deixaria de existir uma chamada à função `bypassSecurityTrustHtml()`, o que já não levantaria qualquer alerta de segurança.
+Na verdade, o ***SonarCloud*** destaca o código quanto à existência de algum padrão não convencional, mas a falha apontada prende-se com o facto de o ciclo `for` não ser um `for-of`, o que seria considerado mais apropriado para este caso, dada a simplicidade das iterações. Assim, a falha identificada não é a chamada à função `bypassSecurityTrustHtml()`, ao contrário do que seria expectável, visto que esta função poderia constar de uma lista interna da ferramenta de funções que, quando utilizadas, devessem suscitar um alerta.
+
+Ora, é a preferência por padrões de código simples, logo, mais facilmente seguros, que faz com que o ***SonarCloud*** sugira a alteração do ciclo `for` para `for-of`, neste caso. Contudo, o facto de não chamar a atenção para a chamada à função `bypassSecurityTrustHtml()` é, provavelmente, devido à ausência desta função de um conjunto de funções que têm maior propensão de introduzir uma falha de segurança na aplicação.
+
+![SonarCloud](/Lab3/images/sonarcloud-4-2.png)
+
+Deste modo, o ***SonarCloud*** mostra-se incapaz de identificar a falha em questão, apesar de salientar a linha de código correspondente.
+
+Depois de corrigir o código vulnerável de acordo com a sugestão de mitigação exposta, o excerto de código vulnerável deixa de existir, pelo que não é aplicável experimentar novamente a execução do ***SonarCloud***, visto que a solução recomendada previamente passa simplesmente por eliminar a função `trustProductDescription()` e a respetiva chamada, pelo que não resta nada para analisar neste âmbito.
 
 ---
 
@@ -600,7 +610,7 @@ Em suma, a tabela seguinte resume os desafios realizados e a informação extra�
 |    ***Login Bender***   |        N/A       |       SIM        |
 |  ***Database Schema***  |        SIM       |       SIM        |
 | ***GDPR Data Erasure*** |        SIM       |       NÃO        |
-|   ***API-Only XSS***    |        SIM       |       N/A        |
+|   ***API-Only XSS***    |        SIM       |       NÃO        |
 |   ***Forged Review***   |        SIM       |       NÃO        |
 
 Assim, conclui-se facilmente que a ferramenta de análise estática ***SonarCloud*** é capaz de detetar vulnerabilidades de injeção devido a validações inadequadas do *input* do utilizador, mas o analisador dinâmico ***Burp Suite*** é mais versátil e eficaz para detetar todo o tipo de vulnerabilidades de diferentes categorias.
