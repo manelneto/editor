@@ -11,9 +11,7 @@ Este projeto foi desenvolvido no âmbito da Unidade Curricular **Segurança em E
 - 202108744 - **M**anuel Neto
 - 201804979 - **A**ndré Serra
 
-## Projeto
-
-### Instruções de Instalação e Execução
+## Instruções de Instalação e Execução
 
 **Pré-Requisitos:**
 - Node.js
