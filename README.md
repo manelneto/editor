@@ -1,14 +1,27 @@
-[![Work in MakeCode](https://classroom.github.com/assets/work-in-make-code-8824cc13a1a3f34ffcd245c82f0ae96fdae6b7d554b6539aec3a03a70825519c.svg)](https://classroom.github.com/online_ide?assignment_repo_id=18445500&assignment_repo_type=AssignmentRepo)
-# This is the template repository for the MSI-SES practical assignments
+# *Secure Collaborative Document Editor*
 
-## Group info
+Este projeto foi desenvolvido no âmbito da Unidade Curricular **Segurança em Engenharia de *Software* (SES)** do 2º semestre do 1º ano do **Mestrado em Segurança Informática (MSI)** da **Faculdade de Ciências da Universidade do Porto (FCUP)**, no ano letivo 2024/2025.
 
-Group Number: ses2425gXX
+## Informação do Grupo
 
-Group Members:
-* 202108758 - Eduardo Roçadas
-* 202108744 - Manuel Neto
-* 201804979 - André Serra
+**Número do Grupo:** ses2425gEMA
 
-## ---
+**Membros do Grupo:**
+- 202108758 - **E**duardo Roçadas
+- 202108744 - **M**anuel Neto
+- 201804979 - **A**ndré Serra
 
+## Projeto
+
+### Instruções de Instalação e Execução
+
+**Pré-Requisitos:**
+- Node.js
+- NPM
+
+```
+cd project
+npm install
+npm run install:components
+npm run dev
+```
