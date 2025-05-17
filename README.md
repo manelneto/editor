@@ -13,9 +13,9 @@ Este projeto foi desenvolvido no âmbito da Unidade Curricular **Segurança em E
 
 ## Instruções de Instalação e Execução
 
-**Pré-Requisitos:**
-- Node.js
-- NPM
+**Requisitos:**
+- [Node.js](https://nodejs.org/en)
+- [NPM](https://www.npmjs.com/)
 
 ```
 cd project
