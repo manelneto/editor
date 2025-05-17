@@ -94,7 +94,7 @@ module.exports = {
      *
      *  defaults to 7 days
      */
-    otpSessionExpiration: 7*24, // hours
+    otpSessionExpiration: 1*24, // hours
 
     /*  Registered users can be forced to protect their account
      *  with a Multi-factor Authentication (MFA) tool like a TOTP
@@ -102,7 +102,7 @@ module.exports = {
      *
      *  defaults to false
      */
-    enforceMFA: false,
+    enforceMFA: true,
 
     /* =====================
      *       Privacy
@@ -117,7 +117,7 @@ module.exports = {
      *
      *  defaults to false
      */
-    logIP: false,
+    logIP: true,
 
     /* =====================
      *         Admin
@@ -136,7 +136,7 @@ module.exports = {
      *
      */
     adminKeys: [
-
+        "[admin@localhost:3000/C7qtEwEpJLcIGbOIdzSdYnKYwPisCbhuJ9FHMd8r4Yo=]"
     ],
 
     /* =====================
