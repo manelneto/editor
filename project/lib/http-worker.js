@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 const process = require("node:process");
-const Http = require("node:http");
+const Https = require("node:https");
 const Default = require("./defaults");
 const Path = require("node:path");
 const Fs = require("node:fs");
@@ -797,14 +797,19 @@ app.use(function (err, req, res /*, next*/) {
     send500(res, custom_fivehundred_path);
 });
 
-var server = Http.createServer(app);
+const sslOptions = {
+  key: Fs.readFileSync("localhost-key.pem"),
+  cert: Fs.readFileSync("localhost.pem")
+};
+
+var server = Https.createServer(sslOptions, app);
 
 nThen(function (w) {
     server.listen(Env.httpPort, Env.httpAddress, w());
-    if (Env.httpSafePort) {
-        let safeServer = Http.createServer(app);
-        safeServer.listen(Env.httpSafePort, Env.httpAddress, w());
-    }
+    
+    let safeServer = Https.createServer(sslOptions, app);
+    safeServer.listen(3001, Env.httpAddress, w());
+
     server.on('upgrade', function (req, socket, head) {
         // TODO warn admins that websockets should only be proxied in this way in a dev environment
         // in production it's more efficient to have your reverse proxy (NGINX) directly forward

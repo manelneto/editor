@@ -14,7 +14,7 @@ module.exports = {
  *  cryptpad/docs/example.nginx.conf (see the $main_domain variable)
  *
  */
-    httpUnsafeOrigin: 'http://localhost:3000',
+    httpUnsafeOrigin: 'https://localhost:3000',
 
 /*  httpSafeOrigin is the URL that is used for the 'sandbox' described above.
  *  If you're testing or developing with CryptPad on your local machine then
@@ -35,7 +35,7 @@ module.exports = {
  *
  *  CUSTOMIZE AND UNCOMMENT THIS FOR PRODUCTION INSTALLATIONS.
  */
-    // httpSafeOrigin: "https://some-other-domain.xyz",
+    httpSafeOrigin: "https://localhost:3001",
 
 /*  httpAddress specifies the address on which the nodejs server
  *  should be accessible. By default it will listen on localhost
@@ -262,7 +262,7 @@ module.exports = {
     /*  CryptPad can log activity to stdout
      *  This may be useful for debugging
      */
-    logToStdout: false,
+    logToStdout: true,
 
     /* CryptPad can be configured to log more or less
      * the various settings are listed below by order of importance

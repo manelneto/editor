@@ -16,10 +16,18 @@ Este projeto foi desenvolvido no âmbito da Unidade Curricular **Segurança em E
 **Requisitos:**
 - [Node.js](https://nodejs.org/en)
 - [NPM](https://www.npmjs.com/)
+- [mkcert](https://github.com/FiloSottile/mkcert)
+
+### Terminal 1 (HTTP)
 
 ```
 cd project
+
 npm install
 npm run install:components
+
+mkcert -install
+mkcert localhost
+
 npm run dev
 ```
