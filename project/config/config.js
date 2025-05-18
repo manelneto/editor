@@ -262,7 +262,7 @@ module.exports = {
     /*  CryptPad can log activity to stdout
      *  This may be useful for debugging
      */
-    logToStdout: true,
+    logToStdout: false,
 
     /* CryptPad can be configured to log more or less
      * the various settings are listed below by order of importance
