@@ -4,8 +4,7 @@ permissions:
   actions: write
   contents: read
 
-on:
-  workflow_dispatch:
+on: push
 
 jobs:
   zap_scan:
