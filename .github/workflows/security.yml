@@ -1,5 +1,9 @@
 name: OWASP ZAP
 
+permissions:
+  actions: write
+  contents: read
+
 on:
   workflow_dispatch:
 
@@ -34,10 +38,10 @@ jobs:
           target: 'https://localhost:3000'
           allow_issue_writing: false
           fail_action: false
-          artifact_name: 'zap_scan_report'
+          artifact_name: 'report'
 
       - name: Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap_scan_report
-          path: zap_scan_report.html
+          name: report
+          path: report.html
