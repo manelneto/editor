@@ -38,9 +38,3 @@ jobs:
           target: 'https://localhost:3000'
           allow_issue_writing: false
           fail_action: false
-
-      - name: Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: report
-          path: zap_scan.zip
