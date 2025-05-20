@@ -18,16 +18,13 @@ Este projeto foi desenvolvido no âmbito da Unidade Curricular **Segurança em E
 - [NPM](https://www.npmjs.com/)
 - [mkcert](https://github.com/FiloSottile/mkcert)
 
-### Terminal 1
-
 ```
 cd project
-
-npm install
-npm run install:components
 
 mkcert -install
 mkcert localhost
 
+npm install
+npm run install:components
 npm run dev
 ```
