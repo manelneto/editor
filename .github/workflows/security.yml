@@ -19,6 +19,14 @@ jobs:
         with:
           node-version: '22'
 
+      - name: mkcert
+        run: |
+          cd project
+          sudo apt install libnss3-tools
+          sudo apt install mkcert
+          mkcert -install
+          mkcert localhost
+
       - name: Dependencies
         run: |
           cd project
