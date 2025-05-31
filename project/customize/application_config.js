@@ -13,7 +13,6 @@
 (() => {
 const factory = (AppConfig) => {
     AppConfig.availablePadTypes = ['drive', 'pad', 'file', 'contacts'];
-    AppConfig.registeredOnlyTypes = AppConfig.availablePadTypes
     AppConfig.availableLanguages = ['en'];
     AppConfig.surveyURL = "";
     AppConfig.hostDescription = {

@@ -45,4 +45,3 @@ jobs:
           target: 'https://localhost:3000'
           allow_issue_writing: false
           fail_action: false
-          har_file: 'project/localhost.har'
